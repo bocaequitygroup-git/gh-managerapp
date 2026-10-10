@@ -199,6 +199,7 @@ const today = () => ymd(new Date());
 const parseDay = s => /^\d{4}-\d{2}-\d{2}/.test(String(s || '')) ? new Date(String(s).slice(0, 10) + 'T00:00:00') : null;
 const dayDiff = (a, b) => { const x = parseDay(a), y = parseDay(b); return x && y ? Math.round((x - y) / 86400000) : NaN; };
 const fmtDay = s => { const d = parseDay(s); return d ? d.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : 'no date'; };
+const fmtStamp = ts => { if (!ts) return ''; const d = new Date(ts); return d.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ', ' + d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}); };
 const fmtTime = ts => ts ? new Date(ts).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) : '';
 const fmtMins = m => m === '' || m == null || isNaN(m) ? '' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
 const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
@@ -231,7 +232,7 @@ const ICON = {
 };
 
 /* ---------- data model ---------- */
-function emptyData() { return {beds: [], bays: [], cohorts: [], proposals: [], tasks: [], workers: [], done: {}, history: [], activities: [], bedMap: {}, actByName: {}, cohortsByBed: {}, at: 0}; }
+function emptyData() { return {beds: [], bays: [], cohorts: [], proposals: [], tasks: [], swaps: [], workers: [], done: {}, history: [], activities: [], bedMap: {}, actByName: {}, cohortsByBed: {}, at: 0}; }
 
 function normLoad(r) {
   const d = emptyData();
@@ -248,6 +249,8 @@ function normLoad(r) {
       rf: g(t, 'rf', 'reassignedFrom', 'Reassigned_From') || '', kind: st === 'PAUSED' ? 'paused' : ['ACTIVE', 'IN_PROGRESS', 'STARTED', 'RUNNING'].includes(st) ? 'active' : 'wait'};
   });
   d.workers = (g(r, 'workers') || []).map(w => ({id: String(g(w, 'id', 'Worker_ID')), name: g(w, 'name', 'Name') || g(w, 'id')}));
+  d.swaps = (g(r, 'swaps') || []).map(x => ({sid: String(g(x, 'sid') || ''), bed: g(x, 'bed') || '', act: g(x, 'act') || '', from: String(g(x, 'from') || ''), to: String(g(x, 'to') || ''),
+    by: g(x, 'by') || '', note: g(x, 'note') || '', at: g(x, 'at') || null})).sort((a, b) => (b.at || 0) - (a.at || 0));
   d.done = g(r, 'done') || {};
   d.history = g(r, 'history') || [];
   d.activities = (g(r, 'activities') || []).map(a => ({id: g(a, 'id', 'Activity_ID'), name: g(a, 'name', 'Activity_Name'), group: g(a, 'group', 'Activity_Group') || 'Other', phase: g(a, 'phase', 'Activity_Phase') || '',
@@ -441,12 +444,12 @@ const section = (title, count, body, empty) => '<h2 class="sec">' + esc(title) +
 /* Board */
 function taskRow(t) {
   const who = wname(t.w), m = minsNow(t), label = {active: 'Working', paused: 'Paused', wait: 'Not started'}[t.kind];
-  const loc = S.reassigned[t.sid], from = t.rf || (loc && loc.from);
+  const loc = S.reassigned[t.sid], sw = (D.swaps || []).find(x => x.sid === t.sid) || S.reassignLog.find(x => x.sid === t.sid), from = (sw && sw.from) || t.rf || (loc && loc.from);
   const clock = t.kind === 'wait' ? 'Assigned ' + fmtDay(t.date) : (m === '' ? '' : fmtMins(m) + ' worked');
   return '<article class="row ' + t.kind + '" data-go="task" data-arg="' + esc(t.sid) + '"><div class="rowtop"><span class="bed">' + esc(t.bed) + '</span><span class="tag ' + t.kind + '">' + label + '</span></div>' +
     '<div class="act">' + esc(t.act) + '</div><div class="facts"><b>' + esc(who) + '</b><span>' + esc(clock) + '</span></div>' +
     (t.kind === 'paused' ? '<div class="strip pause">Paused: ' + esc(t.pr || 'no reason given') + '</div>' : '') +
-    (from ? '<div class="strip swap">Reassigned from ' + esc(wname(from)) + '</div>' : '') +
+    (from ? '<div class="strip swap">Reassigned from ' + esc(wname(from)) + (sw && sw.at ? ', ' + esc(fmtStamp(sw.at)) : '') + (sw && sw.note ? ': ' + esc(sw.note) : '') + '</div>' : '') +
     '<div class="btns"><button class="btn sm" data-go="reassign" data-arg="' + esc(t.sid) + '">Reassign</button><button class="btn sm primary" data-go="closeTask" data-arg="' + esc(t.sid) + '">Close task</button></div></article>';
 }
 function viewBoard() {
@@ -538,10 +541,12 @@ function viewLog() {
   if (!S.sync) return '<h2 class="view">Activity log</h2><div class="empty">Loading the log.</div>';
   const seg = '<div class="chips" role="group" aria-label="Log view"><button class="chip" data-logview="done" aria-pressed="' + (S.logView === 'done') + '">Completed work</button><button class="chip" data-logview="swap" aria-pressed="' + (S.logView === 'swap') + '">Reassignments</button></div>';
   if (S.logView === 'swap') {
-    const fromServer = D.tasks.filter(t => t.rf && !S.reassigned[t.sid]).map(t => ({sid: t.sid, bed: t.bed, act: t.act, from: t.rf, to: t.w, note: '', at: null, by: ''}));
-    const list = S.reassignLog.concat(fromServer);
-    const rows = list.map(r => '<article class="row wait"><div class="rowtop"><span class="bed">' + esc(r.bed) + '</span>' + (r.at ? '<span class="sub">' + esc(fmtTime(r.at)) + '</span>' : '') + '</div><div class="act">' + esc(r.act) + '</div>' +
-      '<div class="facts"><span>From <b>' + esc(wname(r.from)) + '</b></span><span>To <b>' + esc(wname(r.to)) + '</b></span></div>' + (r.note ? '<div class="sub">' + esc(r.note) + '</div>' : '') + (r.by ? '<div class="sub">By ' + esc(r.by) + '</div>' : '') + '</article>').join('');
+    const server = D.swaps || [];
+    const local = S.reassignLog.filter(l => !server.some(x => x.sid === l.sid && x.to === l.to && Math.abs((x.at || 0) - l.at) < 120000));
+    const legacy = D.tasks.filter(t => t.rf && !server.some(x => x.sid === t.sid) && !local.some(x => x.sid === t.sid)).map(t => ({sid: t.sid, bed: t.bed, act: t.act, from: t.rf, to: t.w, note: '', at: null, by: ''}));
+    const list = local.concat(server, legacy);
+    const rows = list.map(r => '<article class="row wait"><div class="rowtop"><span class="bed">' + esc(r.bed) + '</span>' + (r.at ? '<span class="sub">' + esc(fmtStamp(r.at)) + '</span>' : '') + '</div><div class="act">' + esc(r.act) + '</div>' +
+      '<div class="facts"><span>From <b>' + esc(wname(r.from)) + '</b></span><span>To <b>' + esc(wname(r.to)) + '</b></span></div>' + (r.note ? '<div class="sub">&ldquo;' + esc(r.note) + '&rdquo;</div>' : '') + (r.by ? '<div class="sub">By ' + esc(r.by) + '</div>' : '') + '</article>').join('');
     return '<h2 class="view">Activity log</h2>' + seg + section('Session handoffs', list.length, rows, 'No handoffs recorded on this device yet. When you reassign a task here, it is listed with who it moved from and to.');
   }
   const workers = [...new Set(S.sync.log.map(l => l.worker))].sort(), beds = [...new Set(S.sync.log.map(l => l.bed))].sort();
@@ -914,7 +919,7 @@ async function mockApi(action, p) {
   if (action === 'wLogout') return {};
   if (action === 'load') {
     const tasks = M.tasks.map(k => ({sid: k.sid, bed: k.bed, act: k.act, w: k.w, date: k.date, st: k.st, mins: k.startAt ? (k.st === 'PAUSED' ? k.frozen : Math.floor((Date.now() - k.startAt) / 60000)) : '', pr: k.st === 'PAUSED' ? k.pr : ''}));
-    return copy({beds: M.beds, bays: M.bays.map(b => [b[0], b[1]]), activities: M.acts, workers: M.workers, done: M.done, history: [], tasks, proposals: M.proposals,
+    return copy({beds: M.beds, bays: M.bays.map(b => [b[0], b[1]]), activities: M.acts, workers: M.workers, done: M.done, history: [], tasks, swaps: M.swaps || [], proposals: M.proposals,
       cohorts: M.cohorts.filter(c => MAP[c.status] && c.bed).map(c => ({id: c.id, crop: c.crop, bed: c.bed, stage: MAP[c.status], ver: c.ver, dl: c.dl, dob: c.dob, hs: c.hs, he: c.he}))});
   }
   if (action === 'wSync') return copy({log: M.log, scouts: M.scouts, sessions: [], issues: []});
@@ -940,7 +945,7 @@ async function mockApi(action, p) {
     case 'closeTask': { const k = M.tasks.find(x => x.sid === p.sid); if (!k) throw new Error('FIELD_LIVE_SESSION: ' + p.sid + ' not found'); const a = M.acts.find(x => x.name === k.act);
       if (a && a.cnt === 'Yes' && (p.quantity === '' || p.quantity == null || isNaN(Number(p.quantity)))) throw new Error('Enter the quantity for this activity');
       M.tasks = M.tasks.filter(x => x !== k); mockLog(k.bed, k.act, nameOf(k.w), a && a.cnt === 'Yes' ? p.quantity + ' ' + a.unit : ''); return {}; }
-    case 'reassignTask': { const k = M.tasks.find(x => x.sid === p.sid); if (!k) throw new Error('FIELD_LIVE_SESSION: ' + p.sid + ' not found'); k.w = p.to; return {}; }
+    case 'reassignTask': { const k = M.tasks.find(x => x.sid === p.sid); if (!k) throw new Error('FIELD_LIVE_SESSION: ' + p.sid + ' not found'); if (!M.swaps) M.swaps = []; M.swaps.push({id: 'RA-' + (M.swaps.length + 1), sid: k.sid, bed: k.bed, act: k.act, from: k.w, to: p.to, by: nameOf(S.user.id), note: p.note || '', at: Date.now()}); k.w = p.to; return {}; }
   }
   throw new Error('Unknown action: ' + action);
 }
