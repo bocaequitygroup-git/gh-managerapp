@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B3D24">
+<title>GH Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0E2418; --ink2:#34503F; --page:#E6EDE8; --card:#FFFFFF; --line:#B4C5B9;
+  --leaf:#0B6B3A; --leafd:#084D2A; --leaft:#D5EBDC;
+  --amber:#8F4B00; --ambert:#FFE2A8; --red:#AE2218; --redt:#FBDCD8;
+  --blue:#1A4C85; --bluet:#DAE7F6; --bar:#0B3D24;
+  --body:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  --disp:'Barlow Condensed','Arial Narrow','Roboto Condensed',Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);font:400 17px/1.4 var(--body);min-height:100vh}
+body.lock{overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #F2A900;outline-offset:2px}
+[hidden]{display:none!important}
+
+/* header */
+.top{background:var(--bar);color:#fff;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;position:sticky;top:0;z-index:20}
+.top .line1{display:flex;align-items:center;gap:10px}
+.top h1{margin:0;font:700 28px/1 var(--disp);letter-spacing:.02em;flex:1}
+.top .who{font-size:14px;opacity:.92}
+.ibtn{min-width:48px;min-height:48px;border:2px solid rgba(255,255,255,.7);background:transparent;color:#fff;border-radius:8px;font-weight:700;padding:0 12px}
+.ibtn svg{width:24px;height:24px;vertical-align:middle}
+.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.state{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:14px}
+.dot{width:12px;height:12px;border-radius:50%;background:#6FE29B;flex:none}
+.dot.demo{background:#FFD27A}.dot.off{background:#FF8A80}
+.banner{background:var(--ambert);color:#4A2700;border-bottom:3px solid var(--amber);padding:10px 14px;font-weight:700}
+.banner.bad{background:var(--redt);color:#650F08;border-color:var(--red)}
+
+/* layout */
+main{max-width:720px;margin:0 auto;padding:12px 12px calc(150px + env(safe-area-inset-bottom,0px));outline:none}
+h2.sec{font:700 24px/1.1 var(--disp);letter-spacing:.02em;margin:22px 2px 10px;display:flex;align-items:baseline;gap:10px}
+h2.sec small{font:400 15px var(--body);color:var(--ink2)}
+h2.view{font:700 30px/1.05 var(--disp);margin:6px 2px 4px}
+p.hint{margin:0 2px 12px;color:var(--ink2);font-size:16px}
+.empty{background:var(--card);border:2px dashed var(--line);border-radius:8px;padding:16px;color:var(--ink2)}
+
+/* rows */
+.row{background:var(--card);border:2px solid var(--line);border-left:10px solid var(--leaf);border-radius:8px;padding:12px 14px;margin-bottom:10px;position:relative}
+.row[data-go]{cursor:pointer}
+.row.active{border-left-color:var(--leaf)}
+.row.paused,.row.attn{border-left-color:#D98200}
+.row.wait,.row.routine{border-left-color:var(--blue)}
+.row.must,.row.crit{border-left-color:var(--red)}
+.row.sev1{border-left-color:#7A8F80}.row.sev2{border-left-color:#D98200}.row.sev3{border-left-color:#C2410C}.row.sev4{border-left-color:var(--red)}
+.rowtop{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.bed{font:700 32px/1 var(--disp);letter-spacing:.01em}
+.act{font-weight:700;font-size:18px;margin-top:4px}
+.sub{color:var(--ink2);font-size:16px;margin-top:2px}
+.facts{display:flex;justify-content:space-between;gap:12px;margin-top:8px;font-size:16px;flex-wrap:wrap}
+.facts b{font-weight:700}
+.tag{display:inline-block;padding:1px 10px;border-radius:999px;font-weight:700;font-size:14px;border:2px solid currentColor;white-space:nowrap}
+.tag.active{color:var(--leaf)}.tag.paused{color:var(--amber);background:var(--ambert)}.tag.wait{color:var(--blue)}
+.tag.must{color:var(--red)}.tag.ok{color:var(--leaf)}.tag.warn{color:var(--amber)}
+.strip{margin-top:8px;padding:8px 10px;border-radius:6px;font-weight:700;font-size:15px}
+.strip.pause{background:var(--ambert);color:#4A2700}
+.strip.swap{background:var(--bluet);color:#0F2F55}
+.btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.btns .btn{flex:1 1 140px}
+.chev{width:26px;height:26px;flex:none;color:var(--ink2)}
+.qrow{display:flex;gap:12px;align-items:center}
+.qrow .grow{flex:1;min-width:0}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.meter{height:10px;background:#D7E1DA;border-radius:5px;margin-top:8px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--leaf)}
+
+/* buttons, chips, forms */
+.btn{min-height:52px;padding:0 18px;border:2px solid var(--ink);background:#fff;border-radius:8px;font-weight:700;font-size:17px}
+.btn.primary{background:var(--leaf);border-color:var(--leafd);color:#fff}
+.btn.danger{background:var(--red);border-color:#7E140D;color:#fff}
+.btn.sm{min-height:46px;font-size:16px;padding:0 14px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+.chip{min-height:46px;padding:0 14px;border:2px solid var(--ink);background:#fff;border-radius:999px;font-weight:700;font-size:16px}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff}
+label{display:block;font-weight:700;margin:14px 0 6px}
+input,select,textarea{width:100%;min-height:52px;padding:10px 12px;border:2px solid var(--ink);border-radius:8px;background:#fff;font-size:17px}
+textarea{min-height:92px;resize:vertical}
+.find{display:flex;gap:8px;margin:8px 0 4px}
+.find input{flex:1}
+.find .btn{flex:none}
+.err{background:var(--redt);color:#650F08;border:2px solid var(--red);padding:10px 12px;border-radius:8px;font-weight:700;margin:14px 0 0}
+.note{background:var(--ambert);color:#4A2700;border-radius:8px;padding:10px 12px;margin:12px 0;font-weight:700}
+.check{display:flex;gap:10px;align-items:center;padding:10px 12px;border:2px solid var(--line);border-radius:8px;margin-bottom:8px;background:#fff}
+.check .tag{margin-left:auto}
+.check.miss{border-color:var(--amber);background:#FFF6E0}
+.check .t{font-weight:700}
+.tick{margin:14px 0 0;display:flex;gap:10px;align-items:center;font-weight:700}
+.tick input{width:28px;min-height:28px;flex:none}
+
+/* nav */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:3px solid var(--bar);display:grid;grid-template-columns:repeat(6,1fr);padding-bottom:env(safe-area-inset-bottom,0px);z-index:30}
+nav.tabs button{border:0;background:transparent;min-height:64px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:13px;font-weight:700;color:var(--ink2);position:relative}
+nav.tabs svg{width:26px;height:26px}
+nav.tabs button[aria-current="page"]{background:var(--leaft);color:var(--leafd);box-shadow:inset 0 4px 0 var(--leaf)}
+.badge{position:absolute;top:4px;right:calc(50% - 26px);min-width:22px;height:22px;border-radius:11px;background:var(--red);color:#fff;font-size:13px;line-height:22px;text-align:center;padding:0 5px}
+.badge.soft{background:var(--blue)}
+.fab{position:fixed;right:14px;bottom:calc(80px + env(safe-area-inset-bottom,0px));z-index:25;min-height:56px;padding:0 20px;border-radius:28px;border:2px solid var(--leafd);background:var(--leaf);color:#fff;font-weight:700;font-size:17px;box-shadow:0 4px 0 var(--leafd)}
+
+/* sheet */
+#sheet{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center}
+#sheet .scrim{position:absolute;inset:0;background:rgba(14,36,24,.6)}
+#sheet .panel{position:relative;background:#fff;width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;border-radius:16px 16px 0 0;border-top:6px solid var(--leaf);animation:rise .18s ease-out}
+@keyframes rise{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+#sheet header{display:flex;align-items:center;gap:10px;padding:12px 16px 4px}
+#sheet h2{margin:0;font:700 28px/1.05 var(--disp);flex:1}
+#sheet .x{min-width:48px;min-height:48px;font-size:30px;border:2px solid var(--ink);background:#fff;border-radius:8px;line-height:1}
+#sheet .body{padding:4px 16px 12px;overflow:auto;flex:1}
+#sheet footer{padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--line);display:flex;gap:10px;flex-wrap:wrap}
+#sheet footer .btn{flex:1 1 150px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:8px 0}
+.kv dt{color:var(--ink2)}.kv dd{margin:0;font-weight:700}
+
+/* toast, scan */
+#toast{position:fixed;left:12px;right:12px;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:70;max-width:560px;margin:0 auto;background:var(--ink);color:#fff;padding:14px 16px;border-radius:10px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+#toast.bad{background:var(--red)}
+#scan{position:fixed;inset:0;background:#000;z-index:80;display:flex;flex-direction:column}
+#scan video{flex:1;width:100%;object-fit:cover;min-height:0}
+#scan .bar{padding:14px;background:#000;color:#fff;display:flex;gap:12px;align-items:center}
+#scan .bar p{margin:0;flex:1;font-weight:700}
+
+/* login */
+.login{max-width:440px;margin:0 auto;padding:calc(40px + env(safe-area-inset-top,0px)) 20px 40px}
+.login h1{font:700 52px/.95 var(--disp);margin:0 0 6px;color:var(--leafd)}
+.login p{color:var(--ink2);margin:0 0 18px}
+.login .btn{width:100%;margin-top:18px}
+.login .demo{margin-top:20px}
+
+@media (min-width:760px){ nav.tabs{max-width:720px;left:50%;right:auto;width:720px;transform:translateX(-50%);border-left:3px solid var(--bar);border-right:3px solid var(--bar)} }
+@media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="sheet" hidden></div>
+<div id="scan" hidden>
+  <video id="scanVideo" playsinline muted></video>
+  <div class="bar"><p id="scanMsg">Point the camera at the bed QR code.</p><button class="btn" id="scanStop" type="button">Cancel</button></div>
+</div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
+<noscript>This app needs JavaScript.</noscript>
+
+<script>
+'use strict';
+/* ====================================================================================
+   GH Manager (GH-Managerapp.html): manager and founder console for the VPOS-GH greenhouse system.
+   Talks to Code_GH.gs (the Apps Script web app that is bound to the VPOS-GH sheet).
+
+   SETUP: deploy Code_GH.gs as a Web app (Execute as: Me, Who has access: Anyone),
+   then paste the /exec URL between the quotes below.
+   Set to the GH SCRIPT deployment (version 4). Leave it empty to run in demo mode with built-in sample data (PIN 1234).
+   ==================================================================================== */
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxI5EoHK-uRAthC9-V6X1xkXaNvGJYuBmOyI4ox7xeNiTw6rmRPA6mWbw01wKzTbtw5Aw/exec';
+const REQUEST_TIMEOUT_MS = 20000;
+const BOARD_REFRESH_MS = 30000;
+
+const MANAGER_ROLES = ['manager', 'founder', 'owner'];
+const DEMO = !WEB_APP_URL;
+
+/* ---------- state (the session token lives only here, in memory) ---------- */
+const S = {
+  token: null, user: null, tab: 'board', loadedAt: 0, syncAt: 0, sync: null, netErr: '', online: navigator.onLine,
+  boardFilter: 'all', lookup: '', scoutBed: '', scoutDomain: '', scoutSev: 0, logWorker: '', logBed: '', logView: 'done',
+  showAllRoutine: false, showAllGrowing: false, reassigned: {}, reassignLog: [], sheet: null, refreshing: false, again: false,
+  users: [], loginErr: ''
+};
+let D = emptyData();
+
+/* ---------- small helpers ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const nk = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+// Tolerant field reader: tries the exact keys, then any key that matches ignoring case, underscores and spaces.
+function g(o, ...keys) {
+  if (!o || typeof o !== 'object') return undefined;
+  for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k];
+  const map = {};
+  Object.keys(o).forEach(k => { map[nk(k)] = k; });
+  for (const k of keys) { const real = map[nk(k)]; if (real !== undefined && o[real] !== undefined && o[real] !== null) return o[real]; }
+  return undefined;
+}
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const today = () => ymd(new Date());
+const parseDay = s => /^\d{4}-\d{2}-\d{2}/.test(String(s || '')) ? new Date(String(s).slice(0, 10) + 'T00:00:00') : null;
+const dayDiff = (a, b) => { const x = parseDay(a), y = parseDay(b); return x && y ? Math.round((x - y) / 86400000) : NaN; };
+const fmtDay = s => { const d = parseDay(s); return d ? d.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'}) : 'no date'; };
+const fmtTime = ts => ts ? new Date(ts).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) : '';
+const fmtMins = m => m === '' || m == null || isNaN(m) ? '' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+const yes = v => v === true || ['yes', 'true'].includes(String(v).toLowerCase());
+const cropName = n => String(n || '').replace(/-GH$/, '');
+function ago(ts) {
+  if (!ts) return '';
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return 'just now'; if (m < 60) return m + ' min ago';
+  if (m < 1440) return Math.floor(m / 60) + ' h ago';
+  return Math.floor(m / 1440) + ' d ago';
+}
+function dayHead(ts) {
+  const d = ymd(new Date(ts)), t = today();
+  if (d === t) return 'Today'; if (dayDiff(t, d) === 1) return 'Yesterday';
+  return fmtDay(d);
+}
+const SEV = ['Low', 'Moderate', 'High', 'Critical'];
+const sevLabel = n => SEV[Math.max(1, Math.min(4, Number(n) || 1)) - 1];
+
+const ICON = {
+  board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1"/></svg>',
+  today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l2 2 3-3M4 14l2 2 3-3"/><path d="M12 7h8M12 15h8"/></svg>',
+  ready: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20c0-9 5-15 15-16 0 10-6 15-15 16z"/><path d="M5 20c2-5 5-8 9-10"/></svg>',
+  done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M7.5 12.5l3 3 6-7"/></svg>',
+  scout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>',
+  log: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg>',
+  chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>'
+};
+
+/* ---------- data model ---------- */
+function emptyData() { return {beds: [], bays: [], cohorts: [], proposals: [], tasks: [], workers: [], done: {}, history: [], activities: [], bedMap: {}, actByName: {}, cohortsByBed: {}, at: 0}; }
+
+function normLoad(r) {
+  const d = emptyData();
+  d.beds = (g(r, 'beds') || []).map(b => ({id: String(g(b, 'id', 'bedId', 'Bed_ID')), bay: String(g(b, 'bay', 'Bay_ID') || ''), len: g(b, 'len', 'Length_ft'), ok: g(b, 'ok') !== false}));
+  d.bays = (g(r, 'bays') || []).map(b => Array.isArray(b) ? {id: String(b[0]), name: b[1]} : {id: String(g(b, 'id', 'Bay_ID')), name: g(b, 'name', 'Bay_Name')});
+  d.cohorts = (g(r, 'cohorts') || []).map(c => ({id: String(g(c, 'id', 'Cohort_ID')), crop: cropName(g(c, 'crop', 'Crop_Name')), bed: String(g(c, 'bed', 'Bed_ID') || ''),
+    stage: String(g(c, 'stage', 'Cohort_Status') || '').toUpperCase(), ver: yes(g(c, 'ver', 'Planting_Verified')), dl: g(c, 'dl') || 'Planting date',
+    dob: g(c, 'dob') || '', hs: g(c, 'hs') || '', he: g(c, 'he') || ''}));
+  d.proposals = (g(r, 'proposals') || []).map(p => ({id: String(g(p, 'id', 'Planned_Cohort_ID')), crop: cropName(g(p, 'crop', 'Crop_Name')), rec: g(p, 'rec', 'Recommended_Bed_ID') || '', date: g(p, 'date', 'Planned_DOB') || ''}));
+  d.tasks = (g(r, 'tasks') || []).map(t => {
+    const st = String(g(t, 'st', 'Status') || '').toUpperCase();
+    return {sid: String(g(t, 'sid', 'Session_ID')), bed: String(g(t, 'bed', 'Bed_ID') || ''), act: g(t, 'act', 'Activity_Name') || '', w: String(g(t, 'w', 'Worker_ID') || ''),
+      date: g(t, 'date', 'Assigned_Time') || '', st, mins: g(t, 'mins', 'Elapsed_Minutes') === undefined ? '' : g(t, 'mins', 'Elapsed_Minutes'), pr: g(t, 'pr') || '',
+      rf: g(t, 'rf', 'reassignedFrom', 'Reassigned_From') || '', kind: st === 'PAUSED' ? 'paused' : ['ACTIVE', 'IN_PROGRESS', 'STARTED', 'RUNNING'].includes(st) ? 'active' : 'wait'};
+  });
+  d.workers = (g(r, 'workers') || []).map(w => ({id: String(g(w, 'id', 'Worker_ID')), name: g(w, 'name', 'Name') || g(w, 'id')}));
+  d.done = g(r, 'done') || {};
+  d.history = g(r, 'history') || [];
+  d.activities = (g(r, 'activities') || []).map(a => ({id: g(a, 'id', 'Activity_ID'), name: g(a, 'name', 'Activity_Name'), group: g(a, 'group', 'Activity_Group') || 'Other', phase: g(a, 'phase', 'Activity_Phase') || '',
+    req: yes(g(a, 'req', 'Required_For_Availability')), cnt: yes(g(a, 'cnt', 'Requires_Count')), unit: g(a, 'unit', 'Default_Unit') || ''}));
+  d.beds.forEach(b => { d.bedMap[b.id] = b; });
+  d.activities.forEach(a => { d.actByName[a.name] = a; });
+  d.cohorts.forEach(c => { (d.cohortsByBed[c.bed] = d.cohortsByBed[c.bed] || []).push(c); });
+  d.at = Date.now();
+  return d;
+}
+function normSync(r) {
+  return {
+    log: (g(r, 'log') || []).map(l => ({bed: g(l, 'bedId', 'bed', 'Bed_ID') || '', act: g(l, 'act', 'Activity_Name') || '', worker: g(l, 'worker', 'Worker_ID') || '', end: g(l, 'end', 'End_Time') || null,
+      min: g(l, 'min', 'Elapsed_Minutes'), qty: g(l, 'qty', 'Quantity') || '', flag: !!g(l, 'flag'), rf: g(l, 'rf', 'reassignedFrom', 'Reassigned_From') || ''})),
+    scouts: (g(r, 'scouts') || []).map(s => ({id: String(g(s, 'id', 'Finding_ID')), workerId: g(s, 'workerId', 'Worker_ID') || '', bed: g(s, 'bedId', 'bed', 'Bed_ID') || '',
+      domains: Array.isArray(g(s, 'domains', 'Domains')) ? g(s, 'domains', 'Domains') : String(g(s, 'domains', 'Domains') || '').split(';').filter(Boolean),
+      sev: Number(g(s, 'sev', 'Severity')) || 1, note: g(s, 'note', 'Notes') || '', at: g(s, 'at', 'Logged_At') || null}))
+  };
+}
+
+const wname = id => { const w = D.workers.find(x => x.id.toLowerCase() === String(id).toLowerCase()); return w ? w.name : (S.user && S.user.id === id ? S.user.name : (id || 'Unassigned')); };
+const bayName = id => { const b = D.bays.find(x => x.id === id); return b ? b.name : id; };
+const cohortsOn = bed => D.cohortsByBed[bed] || [];
+const tasksOn = bed => D.tasks.filter(t => t.bed === bed);
+const phaseOf = name => (D.actByName[name] || {}).phase || '';
+const hasOpenPhase = (bed, phase) => tasksOn(bed).some(t => phaseOf(t.act) === phase);
+const LIVE = ['PRE_PLANTING', 'GROWING', 'HARVEST_READY'];
+function minsNow(t) { if (t.mins === '' || t.mins == null) return ''; return t.kind === 'active' ? Number(t.mins) + Math.max(0, Math.floor((Date.now() - D.at) / 60000)) : Number(t.mins); }
+
+// Prep that must be done before a bed can be verified ready for planting (Pre-Planting activities marked required).
+function prepNeeds(bed) {
+  const done = D.done[bed] || [];
+  return D.activities.filter(a => a.req && /pre-?planting/i.test(a.phase)).map(a => ({key: a.id, label: a.name, ok: done.includes(a.name), act: a.name}));
+}
+// Which harvest activity fits a bay, from the "(Bay 4)" or "(Bays 2 & 3)" in its name.
+function harvestActFor(bed) {
+  const bay = (String(bed).match(/^GH-(\d)/) || [])[1];
+  const acts = D.activities.filter(a => /^harvest$/i.test(a.phase));
+  return acts.find(a => { const m = String(a.name).match(/\(Bays? ([^)]*)\)/); return m && bay && m[1].includes(bay); }) || acts[0] || null;
+}
+// Turnover: a harvest recorded (when the crop was harvested), plus every required Post-Harvest activity.
+function turnoverNeeds(bed) {
+  const done = D.done[bed] || [], items = [];
+  const harvested = cohortsOn(bed).some(c => c.stage === 'HARVEST_COMPLETE');
+  const hActs = D.activities.filter(a => a.req && /^harvest$/i.test(a.phase));
+  if (harvested && hActs.length) { const fit = harvestActFor(bed); items.push({key: 'harvest', label: 'Harvest recorded', ok: hActs.some(a => done.includes(a.name)), act: fit ? fit.name : hActs[0].name, noDispatch: true}); }
+  D.activities.filter(a => a.req && /post-?harvest/i.test(a.phase)).forEach(a => items.push({key: a.id, label: a.name, ok: done.includes(a.name), act: a.name}));
+  return items;
+}
+const turnoverBeds = () => [...new Set(D.cohorts.filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED').map(c => c.bed))].sort();
+const openBeds = () => D.beds.filter(b => b.ok && !cohortsOn(b.id).length);
+
+function windowText(c) {
+  const t = today();
+  if (!c.hs) return 'Harvest date not set';
+  const d = dayDiff(c.hs, t);
+  if (d > 0) return 'Harvest window opens in ' + plural(d, 'day') + ', ' + fmtDay(c.hs);
+  if (c.he && dayDiff(c.he, t) < 0) return 'Past the latest harvest date, ' + fmtDay(c.he);
+  return 'Harvest window open since ' + fmtDay(c.hs) + (c.he ? ', closes ' + fmtDay(c.he) : '');
+}
+const STAGE_TEXT = {PRE_PLANTING: 'Waiting to plant', GROWING: 'Growing', HARVEST_READY: 'Ready to harvest', HARVEST_COMPLETE: 'Harvest complete', TERMINATED: 'Crop terminated'};
+
+/* ---------- API (live Apps Script, or the built-in demo backend) ---------- */
+async function api(action, payload) {
+  const body = Object.assign({action, token: S.token}, payload || {});
+  if (DEMO) return mockApi(action, body);
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(WEB_APP_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: JSON.stringify(body), signal: ctrl.signal, redirect: 'follow'});
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('The server took longer than ' + Math.round(REQUEST_TIMEOUT_MS / 1000) + ' seconds to answer. Try again.');
+    throw new Error('Could not reach the server. Check your signal and try again.');
+  } finally { clearTimeout(timer); }
+  let data;
+  try { data = JSON.parse(await res.text()); } catch (e) { throw new Error('The server sent an unexpected reply. Check that the web app is deployed with access set to Anyone.'); }
+  if (!data || data.ok === false) {
+    const msg = String(g(data, 'error') || 'The request failed.');
+    if (/session expired/i.test(msg) && S.token) expire();
+    throw new Error(msg);
+  }
+  return data;
+}
+function expire() { S.token = null; S.user = null; S.loginErr = 'Your session ended. Sign in again.'; closeSheet(); render(); }
+
+/* ---------- refresh ---------- */
+const needSync = () => ['today', 'scout', 'log'].includes(S.tab);
+async function refresh(opts) {
+  if (!S.token) return;
+  if (S.refreshing) { S.again = true; return; }
+  S.refreshing = true; spin(true);
+  try {
+    D = normLoad(await api('load')); S.loadedAt = Date.now(); S.netErr = '';
+    if (needSync() || (opts && opts.sync)) { S.sync = normSync(await api('wSync')); S.syncAt = Date.now(); }
+  } catch (e) { if (!S.token) { S.refreshing = false; return; } S.netErr = e.message; }
+  S.refreshing = false; spin(false);
+  render();
+  if (S.again) { S.again = false; refresh(); }
+}
+const spin = on => { const b = $('#btnRefresh'); if (b) b.classList.toggle('spin', on); };
+setInterval(() => { if (S.token && !document.hidden && S.online && !S.sheet && $('#scan').hidden) refresh(); }, BOARD_REFRESH_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.token) refresh(); });
+window.addEventListener('online', () => { S.online = true; if (S.token) refresh(); else render(); });
+window.addEventListener('offline', () => { S.online = false; render(); });
+
+/* ---------- queue for the Today view ---------- */
+function buildQueue() {
+  const t = today(), out = [];
+  const add = (pri, go, arg, bed, title, detail, sort) => out.push({pri, go, arg, bed: bed || '', title, detail, sort: sort || '9999'});
+  D.proposals.forEach(p => add('must', 'proposal', p.id, p.rec, 'Approve a bed for ' + p.crop, 'Planned ' + fmtDay(p.date) + (p.rec ? ', suggested ' + p.rec : ''), p.date));
+  D.cohorts.forEach(c => {
+    if (c.stage === 'PRE_PLANTING') {
+      const due = c.dob && dayDiff(c.dob, t) <= 0, soon = c.dob && dayDiff(c.dob, t) <= 3;
+      if (!c.ver) add(soon ? 'must' : 'routine', 'verifyBed', c.id, c.bed, 'Verify the bed is ready for ' + c.crop, (due ? 'Planting was due ' : 'Planting planned ') + fmtDay(c.dob), c.dob);
+      else if (due) add('must', 'plant', c.id, c.bed, 'Record planting of ' + c.crop, 'Bed verified, planting is due', c.dob);
+      else add('routine', 'plant', c.id, c.bed, 'Verified, waiting to plant: ' + c.crop, 'Planned ' + fmtDay(c.dob), c.dob);
+    } else if (c.stage === 'GROWING') {
+      const d = dayDiff(c.hs, t);
+      if (c.hs && d <= 0) add('must', 'verifyReady', c.id, c.bed, 'Check harvest maturity of ' + c.crop, windowText(c), c.hs);
+      else if (c.hs && d <= 3) add('attn', 'verifyReady', c.id, c.bed, c.crop + ' harvest window opens soon', windowText(c), c.hs);
+      else add('routine', 'verifyReady', c.id, c.bed, 'Growing: ' + c.crop, windowText(c), c.hs || '9999');
+    } else if (c.stage === 'HARVEST_READY') {
+      const crew = hasOpenPhase(c.bed, 'Harvest');
+      add(crew ? 'routine' : 'must', 'bed', c.bed, c.bed, crew ? c.crop + ' harvest in progress' : 'Assign a harvest crew for ' + c.crop,
+        crew ? 'Mark the harvest complete when the totes are in' : 'Maturity verified, nobody assigned yet', '0');
+    }
+  });
+  turnoverBeds().forEach(bed => {
+    const needs = turnoverNeeds(bed), left = needs.filter(n => !n.ok).length;
+    if (!left) add('must', 'turnover', bed, bed, 'Verify turnover and release the bed', 'Every required step is done', '0');
+    else add('attn', 'turnover', bed, bed, 'Finish turnover steps', plural(left, 'step') + ' left before the bed can be released', '1');
+  });
+  D.tasks.forEach(tk => {
+    const who = wname(tk.w);
+    if (tk.kind === 'paused') add('attn', 'task', tk.sid, tk.bed, 'Paused: ' + tk.act, who + (tk.pr ? ': ' + tk.pr : ''), '0');
+    else if (tk.kind === 'wait') {
+      const late = tk.date && dayDiff(tk.date, t) < 0;
+      add(late ? 'attn' : 'routine', 'task', tk.sid, tk.bed, tk.act + ', not started', who + ', assigned ' + fmtDay(tk.date), tk.date);
+    }
+  });
+  D.beds.filter(b => !b.ok).forEach(b => add('attn', 'bed', b.id, b.id, 'Bed is not verified for use', 'Workers cannot start tasks here until a manager verifies it', '2'));
+  if (S.sync) S.sync.scouts.filter(s => s.sev >= 3 && s.at && Date.now() - s.at < 3 * 86400000).forEach(s =>
+    add('attn', 'scout', s.id, s.bed, sevLabel(s.sev) + ' scouting finding', (s.domains.join(', ') || 'No category') + (s.note ? ': ' + s.note : ''), '1'));
+  const rank = {must: 0, attn: 1, routine: 2};
+  return out.sort((a, b) => rank[a.pri] - rank[b.pri] || String(a.sort).localeCompare(String(b.sort)) || a.bed.localeCompare(b.bed));
+}
+
+/* ---------- views ---------- */
+function loginHtml() {
+  const opts = S.users.map(u => '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>').join('');
+  return '<div class="login"><h1>GH Manager</h1><p>Greenhouse field console for managers and founders.</p>' +
+    '<form id="loginForm" autocomplete="off"><label for="lid">Worker ID</label>' +
+    '<input id="lid" list="lusers" autocapitalize="none" autocorrect="off" spellcheck="false" required><datalist id="lusers">' + opts + '</datalist>' +
+    '<label for="lpin">PIN</label><input id="lpin" type="password" inputmode="numeric" autocomplete="off" required>' +
+    '<p class="err" id="lerr" role="alert"' + (S.loginErr ? '' : ' hidden') + '>' + esc(S.loginErr) + '</p>' +
+    '<button class="btn primary" type="submit" id="lgo">Sign in</button></form>' +
+    (DEMO ? '<div class="note demo">Demo mode: sample data only, nothing is saved to your sheet. Sign in with usr-manager1 and PIN 1234. Paste your web app URL into WEB_APP_URL to go live.</div>' : '') + '</div>';
+}
+
+function headerHtml() {
+  const live = S.online && !S.netErr;
+  const stamp = S.loadedAt ? 'Updated ' + fmtTime(S.loadedAt) : 'Loading';
+  const state = DEMO ? '<span class="dot demo"></span>Demo data, ' + stamp.toLowerCase() : live ? '<span class="dot"></span>Live, ' + stamp.toLowerCase() : '<span class="dot off"></span>Not connected';
+  return '<header class="top"><div class="line1"><h1>GH Manager</h1><button class="ibtn" id="btnRefresh" data-act="refresh" aria-label="Refresh now">' + ICON.refresh + '</button>' +
+    '<button class="ibtn" data-act="logout">Sign out</button></div>' +
+    '<div class="state" role="status">' + state + '<span>' + esc(S.user.name) + ', ' + esc(S.user.role) + '</span></div></header>';
+}
+function bannerHtml() {
+  if (!S.online) return '<div class="banner bad" role="alert">No connection. You are seeing data from ' + (S.loadedAt ? fmtTime(S.loadedAt) : 'earlier') + '. Changes cannot be saved until you are back online.</div>';
+  if (S.netErr) return '<div class="banner bad" role="alert">' + esc(S.netErr) + ' Showing the last data loaded' + (S.loadedAt ? ' at ' + fmtTime(S.loadedAt) : '') + '.</div>';
+  return '';
+}
+
+const TABS = [['board', 'Board'], ['today', 'Today'], ['ready', 'Ready'], ['done', 'Complete'], ['scout', 'Scouting'], ['log', 'Log']];
+function navHtml() {
+  const q = buildQueue();
+  const badges = {
+    board: [D.tasks.filter(t => t.kind === 'paused').length, 'badge'],
+    today: [q.filter(i => i.pri === 'must').length, 'badge'],
+    ready: [D.cohorts.filter(c => c.stage === 'HARVEST_READY' || (c.stage === 'GROWING' && c.hs && dayDiff(c.hs, today()) <= 0)).length, 'badge soft'],
+    done: [turnoverBeds().length, 'badge soft']
+  };
+  return '<nav class="tabs" aria-label="Main">' + TABS.map(([k, l]) => {
+    const b = badges[k];
+    return '<button data-tab="' + k + '"' + (S.tab === k ? ' aria-current="page"' : '') + '>' + ICON[k] + l + (b && b[0] ? '<span class="' + b[1] + '">' + b[0] + '</span>' : '') + '</button>';
+  }).join('') + '</nav>';
+}
+
+const section = (title, count, body, empty) => '<h2 class="sec">' + esc(title) + (count !== '' ? '<small>' + count + '</small>' : '') + '</h2>' + (body || '<div class="empty">' + esc(empty || 'Nothing here.') + '</div>');
+
+/* Board */
+function taskRow(t) {
+  const who = wname(t.w), m = minsNow(t), label = {active: 'Working', paused: 'Paused', wait: 'Not started'}[t.kind];
+  const loc = S.reassigned[t.sid], from = t.rf || (loc && loc.from);
+  const clock = t.kind === 'wait' ? 'Assigned ' + fmtDay(t.date) : (m === '' ? '' : fmtMins(m) + ' worked');
+  return '<article class="row ' + t.kind + '" data-go="task" data-arg="' + esc(t.sid) + '"><div class="rowtop"><span class="bed">' + esc(t.bed) + '</span><span class="tag ' + t.kind + '">' + label + '</span></div>' +
+    '<div class="act">' + esc(t.act) + '</div><div class="facts"><b>' + esc(who) + '</b><span>' + esc(clock) + '</span></div>' +
+    (t.kind === 'paused' ? '<div class="strip pause">Paused: ' + esc(t.pr || 'no reason given') + '</div>' : '') +
+    (from ? '<div class="strip swap">Reassigned from ' + esc(wname(from)) + '</div>' : '') +
+    '<div class="btns"><button class="btn sm" data-go="reassign" data-arg="' + esc(t.sid) + '">Reassign</button><button class="btn sm primary" data-go="closeTask" data-arg="' + esc(t.sid) + '">Close task</button></div></article>';
+}
+function viewBoard() {
+  const all = D.tasks.slice(), n = k => all.filter(t => k === 'all' || t.kind === k).length;
+  const rank = {paused: 0, active: 1, wait: 2};
+  const list = all.filter(t => S.boardFilter === 'all' || t.kind === S.boardFilter).sort((a, b) => rank[a.kind] - rank[b.kind] || a.bed.localeCompare(b.bed));
+  const chips = [['all', 'All'], ['active', 'Working'], ['paused', 'Paused'], ['wait', 'Not started']].map(([k, l]) =>
+    '<button class="chip" data-filter="' + k + '" aria-pressed="' + (S.boardFilter === k) + '">' + l + ' ' + n(k) + '</button>').join('');
+  return '<h2 class="view">Open field sessions</h2><p class="hint">Everything workers have been given and not yet finished.</p><div class="chips" role="group" aria-label="Filter sessions">' + chips + '</div>' +
+    (list.length ? list.map(taskRow).join('') : '<div class="empty">No sessions match. Use Assign task to give someone work.</div>');
+}
+
+/* Today */
+function queueRow(i) {
+  return '<article class="row ' + i.pri + '" data-go="' + i.go + '" data-arg="' + esc(i.arg) + '"><div class="qrow"><div class="grow">' + (i.bed ? '<div class="bed">' + esc(i.bed) + '</div>' : '') +
+    '<div class="act">' + esc(i.title) + '</div><div class="sub">' + esc(i.detail) + '</div></div>' + ICON.chev + '</div></article>';
+}
+function viewToday() {
+  const q = buildQueue(), by = k => q.filter(i => i.pri === k);
+  const must = by('must'), attn = by('attn'), rout = by('routine');
+  const shown = S.showAllRoutine ? rout : rout.slice(0, 8);
+  return '<h2 class="view">Today</h2><p class="hint">' + fmtDay(today()) + '. Built from what is waiting on you right now.</p>' +
+    section('Must do', must.length, must.map(queueRow).join(''), 'Nothing urgent. Check Attention next.') +
+    section('Attention', attn.length, attn.map(queueRow).join(''), 'Nothing needs attention.') +
+    section('Routine', rout.length, shown.map(queueRow).join('') + (rout.length > 8 ? '<button class="btn" data-toggle="routine" style="width:100%">' + (S.showAllRoutine ? 'Show fewer' : 'Show all ' + rout.length) + '</button>' : ''), 'No routine items.');
+}
+
+/* Harvest ready */
+function cohortCard(c) {
+  const t = today(), open = c.stage === 'GROWING' && c.hs && dayDiff(c.hs, t) <= 0;
+  let btns = '';
+  if (c.stage === 'HARVEST_READY') btns = '<button class="btn sm" data-go="dispatch" data-arg="' + esc(c.bed + '::' + ((harvestActFor(c.bed) || {}).name || '')) + '">Assign harvest</button><button class="btn sm primary" data-go="harvestDone" data-arg="' + esc(c.id) + '">Mark harvest complete</button>';
+  else btns = '<button class="btn sm' + (open ? ' primary' : '') + '" data-go="verifyReady" data-arg="' + esc(c.id) + '">Verify harvest ready</button>';
+  return '<article class="row ' + (c.stage === 'HARVEST_READY' ? 'active' : open ? 'attn' : 'routine') + '" data-go="bed" data-arg="' + esc(c.bed) + '"><div class="rowtop"><span class="bed">' + esc(c.bed) + '</span><span class="tag ' + (c.stage === 'HARVEST_READY' ? 'ok' : open ? 'warn' : 'wait') + '">' + STAGE_TEXT[c.stage] + '</span></div>' +
+    '<div class="act">' + esc(c.crop) + '</div><div class="sub">' + esc(windowText(c)) + '</div><div class="sub">' + esc(c.dl) + ' ' + esc(fmtDay(c.dob)) + '</div><div class="btns">' + btns + '</div></article>';
+}
+function lookupHtml() {
+  return '<form class="find" id="findForm"><input id="lookup" list="bedlist" placeholder="Bed ID, for example GH-4-G02" value="' + esc(S.lookup) + '" autocapitalize="characters" autocomplete="off" aria-label="Bed ID">' +
+    '<datalist id="bedlist">' + D.beds.map(b => '<option value="' + esc(b.id) + '">').join('') + '</datalist><button class="btn primary" type="submit">Find bed</button><button class="btn" type="button" data-act="scan">Scan QR</button></form>';
+}
+function viewReady() {
+  const t = today(), byHs = (a, b) => String(a.hs || '9999').localeCompare(String(b.hs || '9999'));
+  const ready = D.cohorts.filter(c => c.stage === 'HARVEST_READY').sort((a, b) => a.bed.localeCompare(b.bed));
+  const open = D.cohorts.filter(c => c.stage === 'GROWING' && c.hs && dayDiff(c.hs, t) <= 0).sort(byHs);
+  const soon = D.cohorts.filter(c => c.stage === 'GROWING' && !(c.hs && dayDiff(c.hs, t) <= 0)).sort(byHs);
+  const soonShown = S.showAllGrowing ? soon : soon.slice(0, 6);
+  return '<h2 class="view">Harvest ready</h2><p class="hint">Look up a bed, or scan its QR code, to see what to do there.</p>' + lookupHtml() +
+    section('Verified, ready to harvest', ready.length, ready.map(cohortCard).join(''), 'No crop is verified for harvest.') +
+    section('Window open, not yet verified', open.length, open.map(cohortCard).join(''), 'No growing crop has reached its harvest window.') +
+    section('Growing', soon.length, soonShown.map(cohortCard).join('') + (soon.length > 6 ? '<button class="btn" data-toggle="growing" style="width:100%">' + (S.showAllGrowing ? 'Show fewer' : 'Show all ' + soon.length) + '</button>' : ''), 'No other crops are growing.');
+}
+
+/* Harvest complete */
+function viewDone() {
+  const beds = turnoverBeds(), free = openBeds();
+  const rows = beds.map(bed => {
+    const needs = turnoverNeeds(bed), ok = needs.filter(n => n.ok).length, cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
+    const pct = needs.length ? Math.round(ok / needs.length * 100) : 100, ready = ok === needs.length;
+    return '<article class="row ' + (ready ? 'active' : 'attn') + '" data-go="turnover" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ' + (ready ? 'ok' : 'warn') + '">' + (ready ? 'Ready to release' : 'Steps open') + '</span></div>' +
+      '<div class="act">' + esc(cs.map(c => c.crop).join(', ')) + '</div><div class="sub">' + esc(cs.map(c => STAGE_TEXT[c.stage]).join(', ')) + ', ' + ok + ' of ' + needs.length + ' steps done</div>' +
+      '<div class="meter" aria-hidden="true"><i style="width:' + pct + '%"></i></div></div>' + ICON.chev + '</div></article>';
+  }).join('');
+  const chips = free.length ? '<div class="chips">' + free.map(b => '<button class="chip" data-go="bed" data-arg="' + esc(b.id) + '">' + esc(b.id) + '</button>').join('') + '</div>' : '';
+  return '<h2 class="view">Harvest complete</h2><p class="hint">Beds that finished or ended a crop. Verify turnover to release them for the next planting.</p>' +
+    section('Waiting for turnover', beds.length, rows, 'No bed is waiting for turnover.') +
+    section('Open beds', free.length, chips, 'Every verified bed has a crop on it.');
+}
+
+/* Scouting */
+function viewScout() {
+  if (!S.sync) return '<h2 class="view">Scouting findings</h2><div class="empty">Loading findings.</div>';
+  const all = S.sync.scouts.slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  const beds = [...new Set(all.map(s => s.bed))].sort();
+  const domains = [...new Set(all.flatMap(s => s.domains))].sort();
+  const list = all.filter(s => (!S.scoutBed || s.bed === S.scoutBed) && (!S.scoutDomain || s.domains.includes(S.scoutDomain)) && s.sev >= (S.scoutSev || 0));
+  const sevChips = [[0, 'Any severity'], [2, 'Moderate and up'], [3, 'High and up'], [4, 'Critical']].map(([v, l]) => '<button class="chip" data-scoutsev="' + v + '" aria-pressed="' + (S.scoutSev === v) + '">' + l + '</button>').join('');
+  const domChips = '<button class="chip" data-scoutdom="" aria-pressed="' + (!S.scoutDomain) + '">All types</button>' + domains.map(d => '<button class="chip" data-scoutdom="' + esc(d) + '" aria-pressed="' + (S.scoutDomain === d) + '">' + esc(d) + '</button>').join('');
+  const rows = list.map(s => '<article class="row sev' + s.sev + '" data-go="scout" data-arg="' + esc(s.id) + '"><div class="rowtop"><span class="bed">' + esc(s.bed) + '</span><span class="tag ' + (s.sev >= 4 ? 'must' : s.sev === 3 ? 'warn' : 'wait') + '">' + sevLabel(s.sev) + '</span></div>' +
+    '<div class="tags">' + s.domains.map(d => '<span class="tag wait">' + esc(d) + '</span>').join('') + '</div>' + (s.note ? '<div class="act" style="font-weight:400">' + esc(s.note) + '</div>' : '') +
+    '<div class="facts"><b>' + esc(wname(s.workerId)) + '</b><span>' + esc(ago(s.at)) + '</span></div></article>').join('');
+  return '<h2 class="view">Scouting findings</h2><p class="hint">The most recent 50 findings from the field.</p>' +
+    '<label for="scoutBed" style="margin-top:4px">Bed</label><select id="scoutBed"><option value="">All beds</option>' + beds.map(b => '<option' + (S.scoutBed === b ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' +
+    '<div class="chips" role="group" aria-label="Finding type">' + domChips + '</div><div class="chips" role="group" aria-label="Severity">' + sevChips + '</div>' +
+    section('Findings', 'Showing ' + list.length + ' of ' + all.length, rows, 'No findings match these filters.');
+}
+
+/* Activity log and reassignments */
+function viewLog() {
+  if (!S.sync) return '<h2 class="view">Activity log</h2><div class="empty">Loading the log.</div>';
+  const seg = '<div class="chips" role="group" aria-label="Log view"><button class="chip" data-logview="done" aria-pressed="' + (S.logView === 'done') + '">Completed work</button><button class="chip" data-logview="swap" aria-pressed="' + (S.logView === 'swap') + '">Reassignments</button></div>';
+  if (S.logView === 'swap') {
+    const fromServer = D.tasks.filter(t => t.rf && !S.reassigned[t.sid]).map(t => ({sid: t.sid, bed: t.bed, act: t.act, from: t.rf, to: t.w, note: '', at: null, by: ''}));
+    const list = S.reassignLog.concat(fromServer);
+    const rows = list.map(r => '<article class="row wait"><div class="rowtop"><span class="bed">' + esc(r.bed) + '</span>' + (r.at ? '<span class="sub">' + esc(fmtTime(r.at)) + '</span>' : '') + '</div><div class="act">' + esc(r.act) + '</div>' +
+      '<div class="facts"><span>From <b>' + esc(wname(r.from)) + '</b></span><span>To <b>' + esc(wname(r.to)) + '</b></span></div>' + (r.note ? '<div class="sub">' + esc(r.note) + '</div>' : '') + (r.by ? '<div class="sub">By ' + esc(r.by) + '</div>' : '') + '</article>').join('');
+    return '<h2 class="view">Activity log</h2>' + seg + section('Session handoffs', list.length, rows, 'No handoffs recorded on this device yet. When you reassign a task here, it is listed with who it moved from and to.');
+  }
+  const workers = [...new Set(S.sync.log.map(l => l.worker))].sort(), beds = [...new Set(S.sync.log.map(l => l.bed))].sort();
+  const list = S.sync.log.filter(l => (!S.logWorker || l.worker === S.logWorker) && (!S.logBed || l.bed === S.logBed)).sort((a, b) => (b.end || 0) - (a.end || 0));
+  let last = '', rows = '';
+  list.forEach(l => {
+    const h = l.end ? dayHead(l.end) : 'No end time';
+    if (h !== last) { rows += '<h2 class="sec" style="font-size:20px">' + esc(h) + '</h2>'; last = h; }
+    rows += '<article class="row active"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (l.flag ? '<span class="tag warn">Follow up</span>' : '') + '</div><div class="act">' + esc(l.act) + '</div>' +
+      '<div class="facts"><b>' + esc(l.worker) + '</b><span>' + esc([l.end ? fmtTime(l.end) : '', fmtMins(Number(l.min)), l.qty].filter(Boolean).join(', ')) + '</span></div>' + (l.rf ? '<div class="strip swap">Reassigned from ' + esc(wname(l.rf)) + '</div>' : '') + '</article>';
+  });
+  return '<h2 class="view">Activity log</h2>' + seg +
+    '<label for="logWorker" style="margin-top:4px">Worker</label><select id="logWorker"><option value="">All workers</option>' + workers.map(w => '<option' + (S.logWorker === w ? ' selected' : '') + '>' + esc(w) + '</option>').join('') + '</select>' +
+    '<label for="logBed">Bed</label><select id="logBed"><option value="">All beds</option>' + beds.map(b => '<option' + (S.logBed === b ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' +
+    (list.length ? rows : section('Completed work', 0, '', 'No completed work matches.'));
+}
+
+function viewHtml() { return {board: viewBoard, today: viewToday, ready: viewReady, done: viewDone, scout: viewScout, log: viewLog}[S.tab](); }
+
+function render() {
+  const app = $('#app');
+  if (!S.token) { app.innerHTML = loginHtml(); const f = $('#loginForm'); if (f) f.addEventListener('submit', onLogin); return; }
+  const y = window.scrollY;
+  app.innerHTML = headerHtml() + bannerHtml() + '<main id="main" tabindex="-1">' + viewHtml() + '</main>' + navHtml() +
+    (['board', 'today'].includes(S.tab) ? '<button class="fab" data-go="dispatch" data-arg="">Assign task</button>' : '');
+  window.scrollTo(0, y);
+}
+
+/* ---------- login / logout ---------- */
+async function onLogin(e) {
+  e.preventDefault();
+  const id = $('#lid').value.trim(), pin = $('#lpin').value.trim(), btn = $('#lgo'), err = $('#lerr');
+  btn.disabled = true; btn.textContent = 'Signing in'; err.hidden = true;
+  try {
+    const r = await api('login', {user: id, pin});
+    const u = r.user || {};
+    if (!MANAGER_ROLES.includes(String(g(u, 'role') || '').toLowerCase())) throw new Error('This account is not a manager or founder. Use the worker app instead.');
+    S.token = r.token; S.user = {id: g(u, 'id'), name: g(u, 'name') || id, role: g(u, 'role')}; S.loginErr = ''; S.tab = 'board';
+    D = emptyData(); S.sync = null; S.loadedAt = 0; S.netErr = '';
+    render(); refresh();
+  } catch (ex) {
+    err.textContent = ex.message; err.hidden = false; btn.disabled = false; btn.textContent = 'Sign in';
+    $('#lpin').value = '';
+  }
+}
+async function logout() {
+  const tk = S.token; try { if (tk && !DEMO) await api('wLogout', {token: tk}); } catch (e) {}
+  S.token = null; S.user = null; S.sync = null; S.reassignLog = []; S.reassigned = {}; D = emptyData(); S.loginErr = ''; closeSheet(); render();
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = bad ? 'bad' : ''; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4200); }
+
+/* ---------- bottom sheets ---------- */
+function openSheet(title, body, foot, handlers, onMount) {
+  S.sheet = {handlers: handlers || {}};
+  const el = $('#sheet');
+  el.innerHTML = '<div class="scrim" data-close></div><section class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><header><h2 id="sheetTitle">' + esc(title) + '</h2><button class="x" data-close aria-label="Close">&times;</button></header>' +
+    '<div class="body">' + body + '<p class="err" id="sheetErr" role="alert" hidden></p></div><footer>' + foot + '</footer></section>';
+  el.hidden = false; document.body.classList.add('lock');
+  if (onMount) onMount();
+  const first = el.querySelector('.body input:not([type=checkbox]),.body select,.body textarea'); if (first) first.focus(); else el.querySelector('.x').focus();
+}
+function closeSheet() { const el = $('#sheet'); el.hidden = true; el.innerHTML = ''; S.sheet = null; document.body.classList.remove('lock'); }
+async function runDo(btn) {
+  const h = S.sheet && S.sheet.handlers[btn.dataset.do]; if (!h) return;
+  const err = $('#sheetErr'), label = btn.textContent;
+  err.hidden = true; btn.disabled = true; btn.textContent = 'Saving';
+  try {
+    const res = (await h(btn)) || {};
+    if (res.keep) { btn.disabled = false; btn.textContent = label; return; }
+    closeSheet(); if (res.toast) toast(res.toast);
+    await refresh({sync: true}); if (res.open) go(res.open[0], res.open[1]);
+  } catch (e) {
+    if (!S.sheet) return;
+    err.textContent = e.message; err.hidden = false; btn.disabled = false; btn.textContent = label; err.scrollIntoView({block: 'nearest'});
+  }
+}
+const val = id => { const el = $('#' + id); return el ? el.value.trim() : ''; };
+const need = (v, msg) => { if (!v) throw new Error(msg); return v; };
+const bedOptions = (sel) => { const by = {}; D.beds.filter(b => b.ok).forEach(b => { (by[b.bay] = by[b.bay] || []).push(b); });
+  return Object.keys(by).sort().map(bay => '<optgroup label="' + esc(bayName(bay)) + '">' + by[bay].map(b => { const c = cohortsOn(b.id).find(x => LIVE.includes(x.stage)); return '<option value="' + esc(b.id) + '"' + (b.id === sel ? ' selected' : '') + '>' + esc(b.id) + (c ? ' (' + esc(c.crop) + ')' : ' (open)') + '</option>'; }).join('') + '</optgroup>').join(''); };
+const workerOptions = (sel, skip) => D.workers.filter(w => w.id.toLowerCase() !== String(skip || '').toLowerCase()).map(w => '<option value="' + esc(w.id) + '"' + (w.id === sel ? ' selected' : '') + '>' + esc(w.name) + '</option>').join('');
+const kv = rows => '<dl class="kv">' + rows.filter(Boolean).map(([k, v]) => '<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>').join('') + '</dl>';
+const checklist = items => items.map(i => '<div class="check' + (i.ok ? '' : ' miss') + '"><span class="t">' + esc(i.label) + '</span><span class="tag ' + (i.ok ? 'ok' : 'warn') + '">' + (i.ok ? 'Done' : 'Not done') + '</span></div>').join('');
+const cancelBtn = '<button class="btn" data-close>Cancel</button>';
+const gone = what => { toast(what + ' is no longer open. The list was refreshed.', true); refresh(); };
+
+const SHEETS = {
+  proposal(id) {
+    const p = D.proposals.find(x => x.id === id); if (!p) return gone('That proposal');
+    openSheet('Approve a bed', kv([['Crop', p.crop], ['Planned', fmtDay(p.date)], ['Suggested bed', p.rec || 'None']]) +
+      '<label for="pBed">Bed to use</label><select id="pBed">' + bedOptions(p.rec) + '</select><label for="pWhy">Reason, only if rejecting</label><textarea id="pWhy"></textarea>',
+      cancelBtn + '<button class="btn danger" data-do="reject">Reject</button><button class="btn primary" data-do="approve">Approve bed</button>', {
+        approve: async () => { const bed = need(val('pBed'), 'Choose a bed.'); await api('approveAssignment', {cohort: p.id, bed}); return {toast: 'Approved ' + bed + ' for ' + p.crop}; },
+        reject: async () => { const reason = need(val('pWhy'), 'Write a reason for rejecting.'); await api('rejectAssignment', {cohort: p.id, reason}); return {toast: 'Rejected the proposal for ' + p.crop}; }
+      });
+  },
+  verifyBed(id) {
+    const c = D.cohorts.find(x => x.id === id); if (!c) return gone('That crop');
+    const needs = prepNeeds(c.bed), miss = needs.filter(n => !n.ok);
+    openSheet('Verify bed ready', kv([['Bed', c.bed], ['Crop', c.crop], ['Planned', fmtDay(c.dob)]]) + (needs.length ? '<h2 class="sec" style="font-size:20px">Required prep</h2>' + checklist(needs) : '<p class="hint">No prep is marked as required.</p>') +
+      (miss.length ? '<div class="note">Prep is missing. Assign it, or write why you are verifying anyway.</div><label for="vWhy">Reason for verifying without all prep</label><textarea id="vWhy"></textarea>' : ''),
+      cancelBtn + (miss.length ? '<button class="btn" data-do="assign">Assign missing prep</button>' : '') + '<button class="btn primary" data-do="verify">Verify bed ready</button>', {
+        assign: async () => ({open: ['dispatch', c.bed + '::' + miss[0].act], toast: ''}),
+        verify: async () => { const reason = miss.length ? need(val('vWhy'), 'Write why you are verifying without all prep.') : ''; await api('verifyBedReady', {cohort: c.id, reason}); return {toast: c.bed + ' verified ready for ' + c.crop}; }
+      });
+  },
+  plant(id) {
+    const c = D.cohorts.find(x => x.id === id); if (!c) return gone('That crop');
+    if (!c.ver) return SHEETS.verifyBed(id);
+    openSheet('Record planting', kv([['Bed', c.bed], ['Crop', c.crop], ['Planned', fmtDay(c.dob)]]) + '<label for="plDate">' + esc(c.dl) + '</label><input id="plDate" type="date" value="' + today() + '" max="' + today() + '">',
+      cancelBtn + '<button class="btn primary" data-do="save">Record planting</button>', {
+        save: async () => { const date = need(val('plDate'), 'Enter the planting date.'); if (date > today()) throw new Error('The planting date cannot be in the future.'); await api('recordPlanting', {cohort: c.id, date}); return {toast: c.crop + ' planted on ' + c.bed}; }
+      });
+  },
+  verifyReady(id) {
+    const c = D.cohorts.find(x => x.id === id); if (!c) return gone('That crop');
+    if (c.stage === 'HARVEST_READY') return SHEETS.bed(c.bed);
+    const early = c.hs && dayDiff(c.hs, today()) > 0;
+    openSheet('Verify harvest ready', kv([['Bed', c.bed], ['Crop', c.crop], [c.dl, fmtDay(c.dob)], ['Harvest window', windowText(c)]]) +
+      (early ? '<div class="note">This is before the earliest harvest date. A written reason is required.</div>' : '') + '<label for="rWhy">' + (early ? 'Reason for harvesting early' : 'Notes, optional') + '</label><textarea id="rWhy"></textarea>',
+      cancelBtn + '<button class="btn danger" data-do="end">Terminate crop</button><button class="btn primary" data-do="ok">Verify ready</button>', {
+        end: async () => ({open: ['terminate', c.id]}),
+        ok: async () => { const reason = early ? need(val('rWhy'), 'Write why you are harvesting early.') : val('rWhy'); await api('verifyReady', {cohort: c.id, reason}); return {toast: c.crop + ' on ' + c.bed + ' is ready to harvest'}; }
+      });
+  },
+  harvestDone(id) {
+    const c = D.cohorts.find(x => x.id === id); if (!c) return gone('That crop');
+    const open = tasksOn(c.bed).filter(t => phaseOf(t.act) === 'Harvest');
+    openSheet('Mark harvest complete', kv([['Bed', c.bed], ['Crop', c.crop]]) + (open.length ? '<div class="note">' + plural(open.length, 'harvest task') + ' still open on this bed. Close it first so the quantity is recorded.</div>' : '') +
+      '<p class="hint">The bed moves to turnover. Workers can then clear and reset it.</p>', cancelBtn + '<button class="btn primary" data-do="ok">Mark harvest complete</button>', {
+        ok: async () => { await api('completeHarvest', {cohort: c.id}); return {toast: 'Harvest complete on ' + c.bed}; }
+      });
+  },
+  terminate(id) {
+    const c = D.cohorts.find(x => x.id === id); if (!c) return gone('That crop');
+    openSheet('Terminate crop', kv([['Bed', c.bed], ['Crop', c.crop]]) + '<div class="note">Use this when the crop failed or is being removed without a normal harvest.</div><label for="tWhy">Reason</label><textarea id="tWhy"></textarea>',
+      cancelBtn + '<button class="btn danger" data-do="ok">Terminate crop</button>', {
+        ok: async () => { const reason = need(val('tWhy'), 'Write a reason for terminating.'); await api('terminate', {cohort: c.id, reason}); return {toast: c.crop + ' terminated on ' + c.bed}; }
+      });
+  },
+  turnover(bed) {
+    const needs = turnoverNeeds(bed), cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
+    if (!cs.length) return gone('That bed');
+    const miss = needs.filter(n => !n.ok), open = tasksOn(bed);
+    const rows = needs.map(n => '<div class="check' + (n.ok ? '' : ' miss') + '"><span class="t">' + esc(n.label) + '</span><span class="tag ' + (n.ok ? 'ok' : 'warn') + '">' + (n.ok ? 'Done' : 'Not done') + '</span></div>' +
+      (n.ok ? '' : '<div class="btns" style="margin:-2px 0 10px">' + (n.noDispatch ? '' : '<button class="btn sm" data-do="d:' + esc(n.key) + '">Assign</button>') + '<button class="btn sm" data-do="o:' + esc(n.key) + '">Mark done with a reason</button></div>')).join('');
+    const handlers = {verify: async () => { await api('verifyTurnover', {bed}); return {toast: bed + ' released for the next planting'}; }};
+    miss.forEach(n => { handlers['d:' + n.key] = async () => ({open: ['dispatch', bed + '::' + n.act]}); handlers['o:' + n.key] = async () => ({open: ['override', bed + '::' + n.act]}); });
+    openSheet('Turnover, ' + bed, kv([['Crop', cs.map(c => c.crop).join(', ')], ['Status', cs.map(c => STAGE_TEXT[c.stage]).join(', ')]]) + rows +
+      (open.length ? '<div class="note">' + plural(open.length, 'task') + ' still open on this bed.</div>' : '') +
+      '<p class="hint">Verifying releases the crop and closes this cycle\'s completed tasks, so the bed is ready for its next planting.</p>',
+      cancelBtn + '<button class="btn primary" data-do="verify"' + (miss.length ? ' disabled' : '') + '>Verify turnover</button>', handlers);
+  },
+  override(arg) {
+    const [bed, act] = String(arg).split('::');
+    openSheet('Mark done with a reason', kv([['Bed', bed], ['Step', act]]) + '<div class="note">This logs the step as a manager override. Use it only when the work was done and not recorded, or does not apply.</div><label for="oWhy">Reason</label><textarea id="oWhy"></textarea>',
+      cancelBtn + '<button class="btn primary" data-do="ok">Mark done</button>', {
+        ok: async () => { const reason = need(val('oWhy'), 'Write a reason.'); await api('override', {bed, act, reason}); return {toast: act + ' marked done on ' + bed, open: ['turnover', bed]}; }
+      });
+  },
+  dispatch(arg) {
+    const [bed0, act0] = String(arg || '').split('::');
+    const by = {}; D.activities.forEach(a => { (by[a.group] = by[a.group] || []).push(a); });
+    const actOpts = Object.keys(by).map(gr => '<optgroup label="' + esc(gr) + '">' + by[gr].map(a => '<option' + (a.name === act0 ? ' selected' : '') + '>' + esc(a.name) + '</option>').join('') + '</optgroup>').join('');
+    openSheet('Assign a task', '<label for="dBed">Bed</label><select id="dBed">' + bedOptions(bed0) + '</select><label for="dAct">Activity</label><select id="dAct">' + actOpts + '</select><div id="dHint"></div>' +
+      '<label for="dW">Worker</label><select id="dW">' + workerOptions() + '</select><label for="dDate">Date</label><input id="dDate" type="date" value="' + today() + '"><label for="dNote">Note for the worker, optional</label><textarea id="dNote"></textarea>',
+      cancelBtn + '<button class="btn primary" data-do="ok">Assign task</button>', {
+        ok: async () => { const bed = need(val('dBed'), 'Choose a bed.'), act = need(val('dAct'), 'Choose an activity.'), w = need(val('dW'), 'Choose a worker.');
+          await api('dispatch', {bed, act, w, date: val('dDate') || today(), note: val('dNote')}); return {toast: act + ' assigned to ' + wname(w)}; }
+      }, () => {
+        const hint = () => {
+          const bed = val('dBed'), a = D.actByName[val('dAct')], ph = a ? a.phase : '', live = cohortsOn(bed).find(c => LIVE.includes(c.stage)); let m = '';
+          if (ph === 'Planting' && !(live && live.stage === 'PRE_PLANTING' && live.ver)) m = 'Planting needs a crop on this bed with the bed verified ready.';
+          if (ph === 'Harvest' && !(live && live.stage === 'HARVEST_READY')) m = 'Harvest needs the crop verified mature first.';
+          $('#dHint').innerHTML = m ? '<div class="note">' + esc(m) + '</div>' : '';
+        };
+        $('#dBed').addEventListener('change', hint); $('#dAct').addEventListener('change', hint); hint();
+      });
+  },
+  task(sid) {
+    const t = D.tasks.find(x => x.sid === sid); if (!t) return gone('That task');
+    const m = minsNow(t);
+    openSheet(t.bed, kv([['Activity', t.act], ['Worker', wname(t.w)], ['Status', {active: 'Working', paused: 'Paused', wait: 'Not started'}[t.kind]], m !== '' ? ['Time worked', fmtMins(m)] : null, t.pr ? ['Paused for', t.pr] : null, ['Assigned', fmtDay(t.date)], ['Session', t.sid]]),
+      '<button class="btn" data-do="re">Reassign</button><button class="btn" data-do="next">Assign another task here</button><button class="btn primary" data-do="close">Close task</button>', {
+        re: async () => ({open: ['reassign', sid]}), next: async () => ({open: ['dispatch', t.bed + '::']}), close: async () => ({open: ['closeTask', sid]})
+      });
+  },
+  reassign(sid) {
+    const t = D.tasks.find(x => x.sid === sid); if (!t) return gone('That task');
+    openSheet('Reassign task', kv([['Bed', t.bed], ['Activity', t.act], ['Now with', wname(t.w)]]) + '<label for="rW">Move to</label><select id="rW">' + workerOptions('', t.w) + '</select><label for="rNote">Note, optional</label><textarea id="rNote"></textarea>',
+      cancelBtn + '<button class="btn primary" data-do="ok">Reassign</button>', {
+        ok: async () => { const to = need(val('rW'), 'Choose a worker.'), note = val('rNote'); await api('reassignTask', {sid, to, note});
+          S.reassigned[sid] = {from: t.w, to}; S.reassignLog.unshift({sid, bed: t.bed, act: t.act, from: t.w, to, note, at: Date.now(), by: S.user.name}); return {toast: 'Reassigned to ' + wname(to)}; }
+      });
+  },
+  closeTask(sid) {
+    const t = D.tasks.find(x => x.sid === sid); if (!t) return gone('That task');
+    const a = D.actByName[t.act], needQty = a && a.cnt;
+    openSheet('Close task', kv([['Bed', t.bed], ['Activity', t.act], ['Worker', wname(t.w)]]) + (needQty ? '<label for="cQty">Quantity done (' + esc(a.unit || 'count') + ')</label><input id="cQty" type="number" inputmode="decimal" min="0" step="any">' : '') +
+      '<label for="cNote">Note, optional</label><textarea id="cNote"></textarea><label class="tick"><input type="checkbox" id="cNext">Assign the next task on this bed after closing</label>',
+      cancelBtn + '<button class="btn primary" data-do="ok">Close task</button>', {
+        ok: async () => { const qty = needQty ? need(val('cQty'), 'Enter the quantity for this activity.') : ''; await api('closeTask', {sid, quantity: qty, note: val('cNote')});
+          return {toast: t.act + ' closed on ' + t.bed, open: $('#cNext').checked ? ['dispatch', t.bed + '::'] : null}; }
+      });
+  },
+  scout(id) {
+    const s = S.sync && S.sync.scouts.find(x => x.id === id); if (!s) return gone('That finding');
+    openSheet('Finding on ' + s.bed, kv([['Severity', sevLabel(s.sev)], ['Type', s.domains.join(', ') || 'None'], ['Reported by', wname(s.workerId)], ['When', s.at ? new Date(s.at).toLocaleString([], {weekday: 'short', hour: 'numeric', minute: '2-digit'}) : '']]) + (s.note ? '<p class="act" style="font-weight:400">' + esc(s.note) + '</p>' : ''),
+      cancelBtn + '<button class="btn" data-do="bed">Open bed</button><button class="btn primary" data-do="task">Assign follow-up</button>', {
+        bed: async () => ({open: ['bed', s.bed]}), task: async () => ({open: ['dispatch', s.bed + '::']})
+      });
+  },
+  bed(bed) {
+    const b = D.bedMap[bed]; if (!b) return toast('No bed matches ' + bed, true);
+    const cs = cohortsOn(bed), tk = tasksOn(bed), handlers = {assign: async () => ({open: ['dispatch', bed + '::']})}; let body = kv([['Bay', bayName(b.bay)], ['Length', b.len ? b.len + ' ft' : '']]);
+    if (!b.ok) { body += '<div class="note">This bed is not verified for use. Workers cannot start tasks here until you verify it.</div>'; handlers.verifyBed = async () => { await api('verifyBed', {bed}); return {toast: bed + ' verified for use'}; }; }
+    if (!cs.length) body += '<div class="empty">No crop on this bed.</div>';
+    cs.forEach((c, i) => {
+      const acts = [];
+      if (c.stage === 'PRE_PLANTING') acts.push(c.ver ? ['Record planting', 'plant'] : ['Verify bed ready', 'verifyBed']);
+      if (c.stage === 'GROWING') acts.push(['Verify harvest ready', 'verifyReady'], ['Terminate crop', 'terminate']);
+      if (c.stage === 'HARVEST_READY') acts.push(['Assign harvest', 'harvestCrew'], ['Mark harvest complete', 'harvestDone'], ['Terminate crop', 'terminate']);
+      if (c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED') acts.push(['Turnover checklist', 'turnover']);
+      body += '<article class="row ' + (c.stage === 'HARVEST_READY' ? 'active' : 'routine') + '"><div class="rowtop"><div class="act" style="margin:0">' + esc(c.crop) + '</div><span class="tag wait">' + STAGE_TEXT[c.stage] + '</span></div>' +
+        (c.stage === 'GROWING' || c.stage === 'HARVEST_READY' ? '<div class="sub">' + esc(windowText(c)) + '</div>' : '') + '<div class="sub">' + esc(c.dl) + ' ' + esc(fmtDay(c.dob)) + '</div><div class="btns">' +
+        acts.map(([l, k]) => '<button class="btn sm" data-do="c' + i + k + '">' + esc(l) + '</button>').join('') + '</div></article>';
+      acts.forEach(([l, k]) => { handlers['c' + i + k] = async () => k === 'turnover' ? {open: ['turnover', bed]} : k === 'harvestCrew' ? {open: ['dispatch', bed + '::' + ((harvestActFor(bed) || {}).name || '')]} : {open: [k, c.id]}; });
+    });
+    if (tk.length) body += '<h2 class="sec" style="font-size:20px">Open tasks</h2>' + tk.map(t => '<div class="check"><span class="t">' + esc(t.act) + '<br><small>' + esc(wname(t.w)) + '</small></span><button class="btn sm" data-do="t' + esc(t.sid) + '">Manage</button></div>').join('');
+    tk.forEach(t => { handlers['t' + t.sid] = async () => ({open: ['task', t.sid]}); });
+    openSheet(bed, body, cancelBtn + (b.ok ? '' : '<button class="btn" data-do="verifyBed">Verify bed for use</button>') + '<button class="btn primary" data-do="assign">Assign task</button>', handlers);
+  }
+};
+function go(name, arg) { if (SHEETS[name]) SHEETS[name](arg); }
+
+/* ---------- bed lookup and QR scan ---------- */
+function resolveBed(text) {
+  const raw = String(text || '').trim().toUpperCase(); if (!raw) return null;
+  const ids = D.beds.map(b => b.id).sort((a, b) => b.length - a.length);
+  const exact = ids.find(id => id.toUpperCase() === raw); if (exact) return exact;
+  const inside = ids.find(id => raw.includes(id.toUpperCase())); if (inside) return inside;
+  const compact = raw.replace(/[^A-Z0-9]/g, '');
+  return ids.find(id => id.toUpperCase().replace(/[^A-Z0-9]/g, '') === compact) || null;
+}
+let scanStream = null, scanning = false;
+async function startScan() {
+  if (!('BarcodeDetector' in window)) return toast('This browser cannot scan QR codes. Type the bed ID instead.', true);
+  let det; try { det = new BarcodeDetector({formats: ['qr_code']}); } catch (e) { return toast('This browser cannot scan QR codes. Type the bed ID instead.', true); }
+  try { scanStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: 'environment'}}, audio: false}); }
+  catch (e) { return toast('Camera access was blocked. Allow the camera for this page, or type the bed ID.', true); }
+  const v = $('#scanVideo'); v.srcObject = scanStream; $('#scan').hidden = false; $('#scanMsg').textContent = 'Point the camera at the bed QR code.';
+  try { await v.play(); } catch (e) {}
+  scanning = true;
+  const loop = async () => {
+    if (!scanning) return;
+    try {
+      const codes = await det.detect(v);
+      if (codes.length) {
+        const bed = resolveBed(codes[0].rawValue);
+        if (bed) { stopScan(); S.lookup = bed; go('bed', bed); return; }
+        $('#scanMsg').textContent = 'That code is not a bed in this greenhouse. Try another.';
+      }
+    } catch (e) {}
+    setTimeout(loop, 250);
+  };
+  loop();
+}
+function stopScan() { scanning = false; if (scanStream) scanStream.getTracks().forEach(t => t.stop()); scanStream = null; $('#scan').hidden = true; }
+$('#scanStop').addEventListener('click', stopScan);
+
+/* ---------- global events ---------- */
+document.addEventListener('click', e => {
+  const t = e.target;
+  const close = t.closest('[data-close]'); if (close) { closeSheet(); return; }
+  const doBtn = t.closest('[data-do]'); if (doBtn && S.sheet) { runDo(doBtn); return; }
+  const goEl = t.closest('[data-go]'); if (goEl) { go(goEl.dataset.go, goEl.dataset.arg); return; }
+  const tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; render(); window.scrollTo(0, 0); if (needSync() && Date.now() - S.syncAt > 20000) refresh({sync: true}); return; }
+  const f = t.closest('[data-filter]'); if (f) { S.boardFilter = f.dataset.filter; render(); return; }
+  const sd = t.closest('[data-scoutdom]'); if (sd) { S.scoutDomain = sd.dataset.scoutdom; render(); return; }
+  const ss = t.closest('[data-scoutsev]'); if (ss) { S.scoutSev = Number(ss.dataset.scoutsev); render(); return; }
+  const lv = t.closest('[data-logview]'); if (lv) { S.logView = lv.dataset.logview; render(); return; }
+  const tg = t.closest('[data-toggle]'); if (tg) { if (tg.dataset.toggle === 'routine') S.showAllRoutine = !S.showAllRoutine; else S.showAllGrowing = !S.showAllGrowing; render(); return; }
+  const act = t.closest('[data-act]');
+  if (act) { const a = act.dataset.act; if (a === 'refresh') refresh({sync: true}); else if (a === 'logout') logout(); else if (a === 'scan') startScan(); }
+});
+document.addEventListener('change', e => {
+  const id = e.target.id;
+  if (id === 'scoutBed') { S.scoutBed = e.target.value; render(); }
+  else if (id === 'logWorker') { S.logWorker = e.target.value; render(); }
+  else if (id === 'logBed') { S.logBed = e.target.value; render(); }
+});
+document.addEventListener('input', e => { if (e.target.id === 'lookup') S.lookup = e.target.value; });
+document.addEventListener('submit', e => {
+  if (e.target.id === 'findForm') {
+    e.preventDefault(); const bed = resolveBed(val('lookup'));
+    if (bed) go('bed', bed); else toast(val('lookup') ? 'No bed matches "' + val('lookup') + '".' : 'Type a bed ID first.', true);
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!$('#scan').hidden) stopScan(); else if (S.sheet) closeSheet(); } });
+
+/* ====================================================================================
+   Demo backend: mirrors the shapes and rules of Code_GH.gs so the whole app can be tried
+   without a connection. Used only when WEB_APP_URL is empty.
+   ==================================================================================== */
+let MOCK = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function mockInit() {
+  const dd = n => { const x = new Date(); x.setDate(x.getDate() + n); return ymd(x); };
+  const mins = n => Date.now() - n * 60000;
+  const bays = [['GH-1', 'Greenhouse Bay 1 Cold Climate Zone', 'R', 5], ['GH-2', 'Greenhouse Bay 2 Temperate Commercial Canopy', 'B', 8], ['GH-3', 'Greenhouse Bay 3 Indigenous Specialty Canopy', 'B', 8], ['GH-4', 'Greenhouse Bay 4 Tropical High-Wire House', 'G', 5]];
+  const beds = []; bays.forEach(([id, , l, n]) => { for (let i = 1; i <= n; i++) beds.push({id: id + '-' + l + pad(i), bay: id, len: 288, ok: true}); });
+  beds.find(b => b.id === 'GH-3-B08').ok = false;
+  const A = (id, name, group, phase, req, cnt, unit) => ({id, name, group, phase, req, cnt, unit});
+  const acts = [
+    A('ACT-001', 'Pull Plastic & Drip', 'Bed Preparation', 'Pre-Planting', 'No', 'No', ''), A('ACT-007', 'Pre-Plant Flush & Sanitization', 'Pre-Planting & Planting', 'Pre-Planting', 'Yes', 'Yes', 'bed'),
+    A('ACT-008', 'Direct In-Ground Sowing (Bay 1)', 'Pre-Planting & Planting', 'Planting', 'Yes', 'Yes', 'ft'), A('ACT-009', 'Rolling Bench Plug Planting (Bays 2 & 3)', 'Pre-Planting & Planting', 'Planting', 'Yes', 'Yes', 'tray'),
+    A('ACT-010', 'High-Wire Gutter Block Dropping (Bay 4)', 'Pre-Planting & Planting', 'Planting', 'Yes', 'Yes', 'plant'), A('ACT-013', 'High-Wire Vine Trellising', 'Crop Maintenance', 'Maintenance', 'No', 'No', ''),
+    A('ACT-015', 'In-Ground Row Hand-Weeding (Bay 1)', 'Crop Maintenance', 'Maintenance', 'No', 'No', ''), A('ACT-018', 'Biological Control Release', 'IPM & Calibration', 'IPM & Calibration', 'No', 'Yes', 'each'),
+    A('ACT-019', 'Sticky Card Auditing', 'IPM & Calibration', 'IPM & Calibration', 'No', 'Yes', 'card'), A('ACT-021', 'Drip Line Purging', 'IPM & Calibration', 'IPM & Calibration', 'No', 'No', ''),
+    A('ACT-022', 'Leafy Green Clear-Cutting (Bays 2 & 3)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'tote'), A('ACT-023', 'High-Wire Hand-Picking (Bay 4)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'crate'),
+    A('ACT-024', 'Root Crop Extraction (Bay 1)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'tote'), A('ACT-025', 'Field Heat Removal (Cold Chain Staging)', 'Harvest & Post-Harvest', 'Post-Harvest', 'Yes', 'Yes', 'tote'),
+    A('ACT-026', 'Crop Debris Clearing & Reset', 'Harvest & Post-Harvest', 'Post-Harvest', 'Yes', 'No', '')];
+  const C = (id, crop, bed, status, ver, dl, dob, hs, he) => ({id, crop, bed, status, ver, dl, dob, hs, he});
+  const cohorts = [
+    C('MCH-GH-2026-W03', 'Mchicha-GH', 'GH-2-B01', 'GROWING', true, 'Seeding date', dd(-26), dd(-2), dd(10)),
+    C('SUK-GH-2026-W02', 'Sukuma Wiki-GH', 'GH-2-B02', 'HARVEST_READY', true, 'Transplant date', dd(-41), dd(-6), dd(8)),
+    C('CHD-GH-2026-W01', 'Swiss Chard-GH', 'GH-2-B03', 'GROWING', true, 'Transplant date', dd(-30), dd(2), dd(16)),
+    C('CAR-GH-2026-W01', 'Carrots-GH', 'GH-1-R02', 'GROWING', true, 'Seeding date', dd(-40), dd(21), dd(35)),
+    C('BET-GH-2026-W01', 'Beets-GH', 'GH-1-R03', 'GROWING', true, 'Seeding date', dd(-18), dd(30), dd(44)),
+    C('TOM-GH-2026-W01', 'Tomatoes-GH', 'GH-4-G03', 'GROWING', true, 'Transplant date', dd(-35), dd(12), dd(40)),
+    C('UGW-GH-2026-W01', 'Ugwu-GH', 'GH-3-B01', 'HARVEST_COMPLETE', true, 'Transplant date', dd(-60), dd(-20), dd(-4)),
+    C('ONI-GH-2026-W01', 'Onions-GH', 'GH-1-R05', 'TERMINATED', true, 'Seeding date', dd(-50), dd(40), dd(55)),
+    C('SPD-GH-2026-W01', 'Spider Plant-GH', 'GH-3-B02', 'PLANNED', false, 'Seeding date', dd(1), '', ''),
+    C('MUS-GH-2026-W02', 'Mustard Greens-GH', 'GH-3-B03', 'PLANNED', true, 'Seeding date', dd(0), '', '')];
+  const T = (sid, bed, act, w, st, date, startMin, pr) => ({sid, bed, act, w, st, date, startAt: startMin == null ? null : mins(startMin), frozen: st === 'PAUSED' ? 35 : null, pr: pr || ''});
+  const L = (bed, act, worker, ago, min, qty, flag) => ({bedId: bed, act, worker, end: mins(ago), min, qty, flag: !!flag});
+  const Sc = (id, wk, bed, domains, sev, note, ago) => ({id, workerId: wk, bedId: bed, domains, sev, note, at: mins(ago)});
+  MOCK = {
+    seq: 17, beds, bays, acts, cohorts,
+    proposals: [{id: 'CPL-GH-2026-W02', crop: 'Cowpea Leaves-GH', rec: 'GH-3-B04', date: dd(3)}, {id: 'BTL-GH-2026-W01', crop: 'Bitter Leaf-GH', rec: 'GH-3-B05', date: dd(6)}],
+    tasks: [T('SESS-000012', 'GH-2-B02', 'Leafy Green Clear-Cutting (Bays 2 & 3)', 'lisa', 'ACTIVE', dd(0), 52), T('SESS-000013', 'GH-4-G03', 'High-Wire Vine Trellising', 'james', 'PAUSED', dd(0), 95, 'Lift battery is low'),
+      T('SESS-000014', 'GH-1-R02', 'In-Ground Row Hand-Weeding (Bay 1)', 'jon', 'ASSIGNED', dd(0)), T('SESS-000015', 'GH-3-B02', 'Pre-Plant Flush & Sanitization', 'linda', 'ASSIGNED', dd(-1)),
+      T('SESS-000016', 'GH-1-R01', 'Drip Line Purging', 'lisa', 'ACTIVE', dd(0), 15)],
+    done: {'GH-3-B01': ['Leafy Green Clear-Cutting (Bays 2 & 3)', 'Field Heat Removal (Cold Chain Staging)'], 'GH-3-B03': ['Pre-Plant Flush & Sanitization'], 'GH-1-R05': []},
+    workers: [{id: 'lisa', name: 'Lisa Griffin'}, {id: 'james', name: 'James Clay'}, {id: 'jon', name: 'Jon Creem'}, {id: 'linda', name: 'Linda May'}, {id: 'jessica', name: 'Jessica Luka'}],
+    log: [L('GH-2-B02', 'Leafy Green Clear-Cutting (Bays 2 & 3)', 'Lisa Griffin', 300, 74, '18 tote', true), L('GH-4-G01', 'Sticky Card Auditing', 'James Clay', 380, 41, '12 card'), L('GH-3-B01', 'Field Heat Removal (Cold Chain Staging)', 'Jessica Luka', 1500, 33, '9 tote'),
+      L('GH-3-B01', 'Leafy Green Clear-Cutting (Bays 2 & 3)', 'Jon Creem', 1560, 96, '14 tote'), L('GH-1-R04', 'Drip Line Purging', 'Linda May', 1700, 25, ''), L('GH-4-G03', 'High-Wire Vine Trellising', 'James Clay', 2900, 120, '')],
+    scouts: [Sc('SCT-0001', 'lisa', 'GH-4-G03', ['Pest pressure'], 3, 'Whitefly on the lower leaves, about every third plant.', 140), Sc('SCT-0002', 'jon', 'GH-2-B01', ['Disease', 'Plant condition'], 4, 'Leaf spotting spreading from the aisle end.', 420),
+      Sc('SCT-0003', 'linda', 'GH-1-R02', ['Soil moisture'], 2, 'Dry at the south end of the row.', 1500), Sc('SCT-0004', 'james', 'GH-2-B03', ['Plant condition'], 1, 'Slight yellowing on two plants.', 2000), Sc('SCT-0005', 'jessica', 'GH-4-G03', ['Pest pressure', 'Disease'], 2, 'Sticky cards show thrips rising.', 3000)]
+  };
+}
+function mockCoh(id) { const c = MOCK.cohorts.find(x => x.id === id); if (!c) throw new Error('COHORT_PRODUCTION: ' + id + ' not found'); return c; }
+function mockLog(bed, act, worker, qty) { MOCK.log.push({bedId: bed, act, worker, end: Date.now(), min: 20, qty, flag: false}); MOCK.done[bed] = (MOCK.done[bed] || []).concat([act]); }
+async function mockApi(action, p) {
+  await sleep(220);
+  if (!MOCK) mockInit();
+  const M = MOCK, t = today(), copy = o => JSON.parse(JSON.stringify(o));
+  const MAP = {PLANNED: 'PRE_PLANTING', RESERVED: 'PRE_PLANTING', PRE_PLANTING: 'PRE_PLANTING', GROWING: 'GROWING', HARVEST_READY: 'HARVEST_READY', HARVEST_COMPLETE: 'HARVEST_COMPLETE', TERMINATED: 'TERMINATED'};
+  const nameOf = id => (M.workers.find(w => w.id === id) || {}).name || id;
+  if (action === 'users') return {users: [{id: 'usr-manager1', name: 'Chris Kenny', role: 'Manager'}, {id: 'usr-founder1', name: 'Kisanga', role: 'Founder'}]};
+  if (action === 'login') {
+    const u = {'usr-manager1': ['Chris Kenny', 'Manager'], 'usr-founder1': ['Kisanga', 'Founder']}[String(p.user).toLowerCase()];
+    if (!u || String(p.pin) !== '1234') throw new Error('Wrong PIN, or this user cannot log in');
+    return {token: 'demo-token', user: {id: String(p.user).toLowerCase(), name: u[0], role: u[1]}};
+  }
+  if (!p.token) throw new Error('Session expired');
+  if (action === 'wLogout') return {};
+  if (action === 'load') {
+    const tasks = M.tasks.map(k => ({sid: k.sid, bed: k.bed, act: k.act, w: k.w, date: k.date, st: k.st, mins: k.startAt ? (k.st === 'PAUSED' ? k.frozen : Math.floor((Date.now() - k.startAt) / 60000)) : '', pr: k.st === 'PAUSED' ? k.pr : ''}));
+    return copy({beds: M.beds, bays: M.bays.map(b => [b[0], b[1]]), activities: M.acts, workers: M.workers, done: M.done, history: [], tasks, proposals: M.proposals,
+      cohorts: M.cohorts.filter(c => MAP[c.status] && c.bed).map(c => ({id: c.id, crop: c.crop, bed: c.bed, stage: MAP[c.status], ver: c.ver, dl: c.dl, dob: c.dob, hs: c.hs, he: c.he}))});
+  }
+  if (action === 'wSync') return copy({log: M.log, scouts: M.scouts, sessions: [], issues: []});
+  const phase = name => (M.acts.find(a => a.name === name) || {}).phase;
+  switch (action) {
+    case 'approveAssignment': { const pr = M.proposals.find(x => x.id === p.cohort); if (!pr) throw new Error('BED_ASSIGNMENT: ' + p.cohort + ' not found');
+      M.proposals = M.proposals.filter(x => x !== pr); M.cohorts.push({id: pr.id, crop: pr.crop, bed: p.bed, status: 'PLANNED', ver: false, dl: 'Seeding date', dob: pr.date, hs: '', he: ''}); return {}; }
+    case 'rejectAssignment': M.proposals = M.proposals.filter(x => x.id !== p.cohort); return {};
+    case 'verifyBedReady': { const c = mockCoh(p.cohort); if (!['PLANNED', 'RESERVED', 'PRE_PLANTING'].includes(c.status)) throw new Error('This cohort is not waiting to be planted'); c.ver = true; return {}; }
+    case 'recordPlanting': { const c = mockCoh(p.cohort); if (!c.ver) throw new Error('A manager must verify the bed is ready before planting'); if (String(p.date) > t) throw new Error('Planting date cannot be in the future'); c.dob = p.date; c.status = 'GROWING'; c.hs = ymd(new Date(Date.now() + 21 * 86400000)); c.he = ymd(new Date(Date.now() + 35 * 86400000)); return {}; }
+    case 'verifyReady': { const c = mockCoh(p.cohort); if (c.status !== 'GROWING') throw new Error('Only a growing cohort can be verified for harvest');
+      if (c.hs && t < c.hs && !String(p.reason || '').trim()) throw new Error('Not yet at the earliest harvest date (' + c.hs + '). A written reason is required.'); c.status = 'HARVEST_READY'; return {}; }
+    case 'completeHarvest': mockCoh(p.cohort).status = 'HARVEST_COMPLETE'; return {};
+    case 'terminate': mockCoh(p.cohort).status = 'TERMINATED'; return {};
+    case 'verifyTurnover': M.cohorts = M.cohorts.filter(c => !(c.bed === p.bed && ['HARVEST_COMPLETE', 'TERMINATED'].includes(c.status))); M.done[p.bed] = []; return {};
+    case 'verifyBed': M.beds.find(b => b.id === p.bed).ok = true; return {};
+    case 'dispatch': {
+      const live = M.cohorts.find(c => c.bed === p.bed && ['GROWING', 'HARVEST_READY', 'PLANNED', 'RESERVED', 'PRE_PLANTING'].includes(c.status)), ph = phase(p.act), ls = live ? live.status : '';
+      if (ph === 'Planting' && !(live && live.ver && ['PLANNED', 'RESERVED', 'PRE_PLANTING'].includes(ls))) throw new Error('Planting needs a cohort on this bed with the bed verified ready by a manager');
+      if (ph === 'Harvest' && ls !== 'HARVEST_READY') throw new Error('Harvest needs the crop verified mature by a manager');
+      const sid = 'SESS-' + String(++M.seq).padStart(6, '0'); M.tasks.push({sid, bed: p.bed, act: p.act, w: p.w, st: 'ASSIGNED', date: p.date || t, startAt: null, pr: ''}); return {sid}; }
+    case 'override': if (!String(p.reason || '').trim()) throw new Error('A written reason is required'); mockLog(p.bed, p.act, S.user ? S.user.name : 'Manager', ''); return {};
+    case 'closeTask': { const k = M.tasks.find(x => x.sid === p.sid); if (!k) throw new Error('FIELD_LIVE_SESSION: ' + p.sid + ' not found'); const a = M.acts.find(x => x.name === k.act);
+      if (a && a.cnt === 'Yes' && (p.quantity === '' || p.quantity == null || isNaN(Number(p.quantity)))) throw new Error('Enter the quantity for this activity');
+      M.tasks = M.tasks.filter(x => x !== k); mockLog(k.bed, k.act, nameOf(k.w), a && a.cnt === 'Yes' ? p.quantity + ' ' + a.unit : ''); return {}; }
+    case 'reassignTask': { const k = M.tasks.find(x => x.sid === p.sid); if (!k) throw new Error('FIELD_LIVE_SESSION: ' + p.sid + ' not found'); k.w = p.to; return {}; }
+  }
+  throw new Error('Unknown action: ' + action);
+}
+
+/* ---------- start ---------- */
+(async function boot() {
+  render();
+  try { S.users = (await api('users')).users || []; render(); } catch (e) { /* the login form still works without the user list */ }
+})();
+</script>
+</body>
+</html>
