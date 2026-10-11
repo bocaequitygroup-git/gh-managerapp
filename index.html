@@ -305,10 +305,20 @@ function turnoverNeeds(bed) {
 }
 // Every required turnover step of a bed with its status: OPEN, ASSIGNED, IN_PROGRESS, DONE (waiting for verification) or VERIFIED.
 function turnoverSteps(bed) {
-  const gate = (D.gates || []).find(x => x.bed === bed && x.kind === 'turnover');
+  const gate = (D.gates || []).find(x => x.bed === bed && (x.kind === 'turnover' || !x.cohort));
   if (gate) return gate.steps.map(s => ({label: s.act, status: String(s.status || 'OPEN').toUpperCase()}));
   const log = S.sync ? S.sync.log : [];
   return turnoverNeeds(bed).map(n => ({label: n.label, status: !n.ok ? 'OPEN' : (log.some(l => l.bed === bed && l.act === n.act && l.ver) ? 'VERIFIED' : 'DONE')}));
+}
+// Beds with no crop waiting that are being reset: every required step must be verified before they are ready for the next planting.
+const resetBeds = () => (D.gates || []).filter(x => x.kind === 'prep' && !x.cohort).map(x => x.bed);
+// A finished log entry counts as verified when the log says so, or when the bed's gate shows that same step as verified.
+function logVerified(l) {
+  if (l.ver) return {by: l.verBy};
+  for (const gt of (D.gates || [])) if (gt.bed === l.bed) for (const st of gt.steps) {
+    if (String(st.status).toUpperCase() === 'VERIFIED' && st.act === l.act && (st.logId && l.id ? st.logId === l.id : Math.abs(Number(st.end) - Number(l.end)) < 60000)) return {by: st.by};
+  }
+  return null;
 }
 const turnoverBeds = () => [...new Set(D.cohorts.filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED').map(c => c.bed))].sort();
 const openBeds = () => D.beds.filter(b => b.ok && !cohortsOn(b.id).length);
@@ -494,7 +504,8 @@ function verifyData() {
   const plant = D.cohorts.filter(c => c.stage === 'PRE_PLANTING' && c.bed && !c.ver).sort((a, b) => String(a.dob || '9999').localeCompare(String(b.dob || '9999')));
   const maturity = D.cohorts.filter(c => c.stage === 'GROWING' && c.hs && dayDiff(c.hs, t) <= 0).sort((a, b) => String(a.hs).localeCompare(String(b.hs)));
   const harvest = D.cohorts.filter(c => c.stage === 'HARVEST_READY').sort((a, b) => a.bed.localeCompare(b.bed));
-  const release = turnoverBeds(), releaseReady = release.filter(bed => turnoverSteps(bed).every(x => x.status === 'VERIFIED'));
+  const turn = turnoverBeds(), releaseReady = turn.filter(bed => turnoverSteps(bed).every(x => x.status === 'VERIFIED'));
+  const release = [...new Set(turn.concat(resetBeds()))].sort();
   const work = D.pendingWork.slice().sort((x, y) => (y.end || 0) - (x.end || 0));   // finished by workers, not yet verified
   const recent = S.sync ? S.sync.log.filter(l => l.end && Date.now() - Number(l.end) < 48 * 36e5).sort((a, b) => (b.end || 0) - (a.end || 0)) : [];
   return {work, plant, maturity, harvest, release, releaseReady, recent};
@@ -521,15 +532,15 @@ function viewVerify() {
     const cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
     const steps = turnoverSteps(bed), vok = steps.filter(x => x.status === 'VERIFIED').length, ready = vok === steps.length;
     const stepRows = steps.map(x => { const t = STEP_TAG[x.status] || STEP_TAG.OPEN; return '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(x.label) + '</span><span class="tag ' + t[0] + '">' + t[1] + '</span></div>'; }).join('');
-    return '<article class="row ' + (ready ? 'active' : 'attn') + '" data-go="turnover" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ' + (ready ? 'ok' : 'warn') + '">' + (ready ? 'Ready to release' : vok + ' of ' + steps.length + ' verified') + '</span></div>' +
-      '<div class="act">Verify turnover for ' + esc(cs.map(c => c.crop).join(', ')) + '</div>' + stepRows +
-      '<div class="sub" style="margin-top:6px">' + (ready ? 'Every required step is verified. Verifying frees the bed for the next planting.' : 'The bed is ready once every step above is verified.') + '</div></div>' + ICON.chev + '</div></article>';
+    return '<article class="row ' + (ready ? 'active' : 'attn') + '" data-go="' + (cs.length ? 'turnover' : 'bed') + '" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ' + (ready ? 'ok' : 'warn') + '">' + (ready ? (cs.length ? 'Ready to release' : 'Bed ready') : vok + ' of ' + steps.length + ' verified') + '</span></div>' +
+      '<div class="act">' + (cs.length ? 'Verify turnover for ' + esc(cs.map(c => c.crop).join(', ')) : 'Required steps before the next planting') + '</div>' + stepRows +
+      '<div class="sub" style="margin-top:6px">' + (ready ? (cs.length ? 'Every required step is verified. Verifying frees the bed for the next planting.' : 'Every required step is verified. The bed is ready for its next planting.') : 'The bed is ready once every step above is verified.') + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   const pend = {}; v.work.forEach(w => { pend[w.bed + '|' + w.act + '|' + w.end] = w.id; });
   const recentRows = v.recent.slice(0, 15).map(l => {
     const pid = pend[l.bed + '|' + l.act + '|' + l.end];
-    return '<article class="row ' + (pid ? 'attn' : 'routine') + '" data-go="' + (pid ? 'verifyWork' : 'bed') + '" data-arg="' + esc(pid || l.bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (pid ? '<span class="tag warn">Needs verification</span>' : (l.ver ? '<span class="tag ok">VERIFIED</span>' : '')) + '</div>' +
-      '<div class="act">' + esc(l.act) + '</div><div class="sub">' + esc(wname(l.worker)) + ', ' + esc(dayHead(l.end) + ' ' + fmtTime(l.end)) + (l.min !== '' && l.min != null ? ', ' + esc(fmtMins(Number(l.min))) : '') + (l.qty ? ', ' + esc(l.qty) : '') + (l.ver && l.verBy ? ', verified by ' + esc(l.verBy) : '') + '</div></div>' + ICON.chev + '</div></article>';
+    return '<article class="row ' + (pid ? 'attn' : 'routine') + '" data-go="' + (pid ? 'verifyWork' : 'bed') + '" data-arg="' + esc(pid || l.bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (pid ? '<span class="tag warn">Needs verification</span>' : (logVerified(l) ? '<span class="tag ok">VERIFIED</span>' : '')) + '</div>' +
+      '<div class="act">' + esc(l.act) + '</div><div class="sub">' + esc(wname(l.worker)) + ', ' + esc(dayHead(l.end) + ' ' + fmtTime(l.end)) + (l.min !== '' && l.min != null ? ', ' + esc(fmtMins(Number(l.min))) : '') + (l.qty ? ', ' + esc(l.qty) : '') + ((logVerified(l) || {}).by ? ', verified by ' + esc(logVerified(l).by) : '') + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   return '<h2 class="view">Verify</h2><p class="hint">Everything a manager has to sign off, in one place: work workers have finished, beds before planting, crops before harvest, finished harvests and beds ready to release.</p>' +
     section('Completed work to verify', v.work.length, workRows, 'No finished work is waiting for your verification.') +
