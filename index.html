@@ -103,11 +103,11 @@ textarea{min-height:92px;resize:vertical}
 .tick input{width:28px;min-height:28px;flex:none}
 
 /* nav */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:3px solid var(--bar);display:grid;grid-template-columns:repeat(6,1fr);padding-bottom:env(safe-area-inset-bottom,0px);z-index:30}
-nav.tabs button{border:0;background:transparent;min-height:64px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:13px;font-weight:700;color:var(--ink2);position:relative}
-nav.tabs svg{width:26px;height:26px}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:3px solid var(--bar);display:grid;grid-template-columns:repeat(7,1fr);padding-bottom:env(safe-area-inset-bottom,0px);z-index:30}
+nav.tabs button{border:0;background:transparent;min-height:64px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;font-weight:700;color:var(--ink2);position:relative}
+nav.tabs svg{width:24px;height:24px}
 nav.tabs button[aria-current="page"]{background:var(--leaft);color:var(--leafd);box-shadow:inset 0 4px 0 var(--leaf)}
-.badge{position:absolute;top:4px;right:calc(50% - 26px);min-width:22px;height:22px;border-radius:11px;background:var(--red);color:#fff;font-size:13px;line-height:22px;text-align:center;padding:0 5px}
+.badge{position:absolute;top:3px;right:calc(50% - 24px);min-width:22px;height:22px;border-radius:11px;background:var(--red);color:#fff;font-size:13px;line-height:22px;text-align:center;padding:0 5px}
 .badge.soft{background:var(--blue)}
 .fab{position:fixed;right:14px;bottom:calc(80px + env(safe-area-inset-bottom,0px));z-index:25;min-height:56px;padding:0 20px;border-radius:28px;border:2px solid var(--leafd);background:var(--leaf);color:#fff;font-weight:700;font-size:17px;box-shadow:0 4px 0 var(--leafd)}
 
@@ -223,6 +223,7 @@ const sevLabel = n => SEV[Math.max(1, Math.min(4, Number(n) || 1)) - 1];
 const ICON = {
   board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1"/></svg>',
   today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l2 2 3-3M4 14l2 2 3-3"/><path d="M12 7h8M12 15h8"/></svg>',
+  verify: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>',
   ready: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20c0-9 5-15 15-16 0 10-6 15-15 16z"/><path d="M5 20c2-5 5-8 9-10"/></svg>',
   done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M7.5 12.5l3 3 6-7"/></svg>',
   scout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>',
@@ -232,7 +233,7 @@ const ICON = {
 };
 
 /* ---------- data model ---------- */
-function emptyData() { return {beds: [], bays: [], cohorts: [], proposals: [], tasks: [], swaps: [], workers: [], done: {}, history: [], activities: [], bedMap: {}, actByName: {}, cohortsByBed: {}, at: 0}; }
+function emptyData() { return {beds: [], bays: [], cohorts: [], proposals: [], pendingWork: [], tasks: [], swaps: [], workers: [], done: {}, history: [], activities: [], bedMap: {}, actByName: {}, cohortsByBed: {}, at: 0}; }
 
 function normLoad(r) {
   const d = emptyData();
@@ -251,6 +252,7 @@ function normLoad(r) {
   d.workers = (g(r, 'workers') || []).map(w => ({id: String(g(w, 'id', 'Worker_ID')), name: g(w, 'name', 'Name') || g(w, 'id')}));
   d.swaps = (g(r, 'swaps') || []).map(x => ({sid: String(g(x, 'sid') || ''), bed: g(x, 'bed') || '', act: g(x, 'act') || '', from: String(g(x, 'from') || ''), to: String(g(x, 'to') || ''),
     by: g(x, 'by') || '', note: g(x, 'note') || '', at: g(x, 'at') || null})).sort((a, b) => (b.at || 0) - (a.at || 0));
+  d.pendingWork = (g(r, 'pendingWork') || []).map(w => ({phase: g(w, 'phase') || '', id: String(g(w, 'id')), bed: String(g(w, 'bed') || ''), act: g(w, 'act') || '', worker: g(w, 'worker') || '', end: g(w, 'end') || null, min: g(w, 'min'), qty: g(w, 'qty') || '', cohort: g(w, 'cohort') || ''}));
   d.done = g(r, 'done') || {};
   d.history = g(r, 'history') || [];
   d.activities = (g(r, 'activities') || []).map(a => ({id: g(a, 'id', 'Activity_ID'), name: g(a, 'name', 'Activity_Name'), group: g(a, 'group', 'Activity_Group') || 'Other', phase: g(a, 'phase', 'Activity_Phase') || '',
@@ -337,7 +339,7 @@ async function api(action, payload) {
 function expire() { S.token = null; S.user = null; S.loginErr = 'Your session ended. Sign in again.'; closeSheet(); render(); }
 
 /* ---------- refresh ---------- */
-const needSync = () => ['today', 'scout', 'log'].includes(S.tab);
+const needSync = () => ['today', 'verify', 'scout', 'log'].includes(S.tab);
 async function refresh(opts) {
   if (!S.token) return;
   if (S.refreshing) { S.again = true; return; }
@@ -424,12 +426,13 @@ function bannerHtml() {
   return '';
 }
 
-const TABS = [['board', 'Board'], ['today', 'Today'], ['ready', 'Ready'], ['done', 'Complete'], ['scout', 'Scouting'], ['log', 'Log']];
+const TABS = [['board', 'Board'], ['today', 'Today'], ['verify', 'Verify'], ['ready', 'Harvest'], ['done', 'Turnover'], ['scout', 'Scouting'], ['log', 'Log']];
 function navHtml() {
   const q = buildQueue();
   const badges = {
     board: [D.tasks.filter(t => t.kind === 'paused').length, 'badge'],
     today: [q.filter(i => i.pri === 'must').length, 'badge'],
+    verify: [verifyCount(), 'badge'],
     ready: [D.cohorts.filter(c => c.stage === 'HARVEST_READY' || (c.stage === 'GROWING' && c.hs && dayDiff(c.hs, today()) <= 0)).length, 'badge soft'],
     done: [turnoverBeds().length, 'badge soft']
   };
@@ -477,6 +480,54 @@ function viewToday() {
     section('Routine', rout.length, shown.map(queueRow).join('') + (rout.length > 8 ? '<button class="btn" data-toggle="routine" style="width:100%">' + (S.showAllRoutine ? 'Show fewer' : 'Show all ' + rout.length) + '</button>' : ''), 'No routine items.');
 }
 
+/* Verify: everything a manager has to sign off, in one place */
+function verifyData() {
+  const t = today();
+  const plant = D.cohorts.filter(c => c.stage === 'PRE_PLANTING' && c.bed && !c.ver).sort((a, b) => String(a.dob || '9999').localeCompare(String(b.dob || '9999')));
+  const maturity = D.cohorts.filter(c => c.stage === 'GROWING' && c.hs && dayDiff(c.hs, t) <= 0).sort((a, b) => String(a.hs).localeCompare(String(b.hs)));
+  const harvest = D.cohorts.filter(c => c.stage === 'HARVEST_READY').sort((a, b) => a.bed.localeCompare(b.bed));
+  const release = turnoverBeds().filter(bed => { const n = turnoverNeeds(bed); return n.every(x => x.ok); });
+  const work = D.pendingWork.slice().sort((x, y) => (y.end || 0) - (x.end || 0));   // finished by workers, not yet verified
+  const recent = S.sync ? S.sync.log.filter(l => l.end && Date.now() - Number(l.end) < 48 * 36e5).sort((a, b) => (b.end || 0) - (a.end || 0)) : [];
+  return {work, plant, maturity, harvest, release, recent};
+}
+function verifyCount() {
+  const v = verifyData();
+  return v.plant.length + v.maturity.length + v.harvest.length + v.release.length + v.work.length;
+}
+function viewVerify() {
+  const v = verifyData();
+  const plantRows = v.plant.map(c => {
+    const needs = prepNeeds(c.bed), ok = needs.filter(n => n.ok).length, miss = needs.length - ok;
+    return '<article class="row ' + (miss ? 'attn' : 'active') + '" data-go="verifyBed" data-arg="' + esc(c.id) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(c.bed) + '</span><span class="tag ' + (miss ? 'warn' : 'ok') + '">' + (miss ? plural(miss, 'prep step') + ' missing' : 'Prep done') + '</span></div>' +
+      '<div class="act">Verify the bed is ready for ' + esc(c.crop) + '</div><div class="sub">' + (needs.length ? ok + ' of ' + needs.length + ' required prep steps done. ' : '') + 'Planting planned ' + esc(fmtDay(c.dob)) + '. Planting is blocked until you verify.</div></div>' + ICON.chev + '</div></article>';
+  }).join('');
+  const workRows = v.work.map(w => {
+    const open = cohortsOn(w.bed).some(c => c.stage === 'PRE_PLANTING' && !c.ver);
+    return '<article class="row attn" data-go="verifyWork" data-arg="' + esc(w.id) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(w.bed) + '</span><span class="tag warn">Needs verification</span></div>' +
+      '<div class="act">' + esc(w.act) + '</div><div class="sub">Done by ' + esc(w.worker) + (w.end ? ', ' + esc(fmtStamp(w.end)) : '') + (w.min !== '' && w.min != null ? ', ' + esc(fmtMins(Number(w.min))) : '') + (w.qty ? ', ' + esc(w.qty) : '') + '</div>' +
+      '<div class="sub">' + (/post/i.test(w.phase) ? 'Check this clean-up step was done properly before releasing the bed.' : 'Check the bed is empty, cleared and checked.' + (open ? ' A crop is waiting to be planted here.' : '')) + '</div></div>' + ICON.chev + '</div></article>';
+  }).join('');
+  const releaseRows = v.release.map(bed => {
+    const cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
+    return '<article class="row active" data-go="turnover" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ok">Ready to release</span></div>' +
+      '<div class="act">Verify turnover for ' + esc(cs.map(c => c.crop).join(', ')) + '</div><div class="sub">Every required step is done. Verifying frees the bed for the next planting.</div></div>' + ICON.chev + '</div></article>';
+  }).join('');
+  const pend = {}; v.work.forEach(w => { pend[w.bed + '|' + w.act + '|' + w.end] = w.id; });
+  const recentRows = v.recent.slice(0, 15).map(l => {
+    const pid = pend[l.bed + '|' + l.act + '|' + l.end];
+    return '<article class="row ' + (pid ? 'attn' : 'routine') + '" data-go="' + (pid ? 'verifyWork' : 'bed') + '" data-arg="' + esc(pid || l.bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (pid ? '<span class="tag warn">Needs verification</span>' : '') + '</div>' +
+      '<div class="act">' + esc(l.act) + '</div><div class="sub">' + esc(wname(l.worker)) + ', ' + esc(dayHead(l.end) + ' ' + fmtTime(l.end)) + (l.min !== '' && l.min != null ? ', ' + esc(fmtMins(Number(l.min))) : '') + (l.qty ? ', ' + esc(l.qty) : '') + '</div></div>' + ICON.chev + '</div></article>';
+  }).join('');
+  return '<h2 class="view">Verify</h2><p class="hint">Everything a manager has to sign off, in one place: work workers have finished, beds before planting, crops before harvest, finished harvests and beds ready to release.</p>' +
+    section('Completed work to verify', v.work.length, workRows, 'No finished work is waiting for your verification.') +
+    section('Verify bed ready for planting', v.plant.length, plantRows, 'No planting is waiting for bed verification.') +
+    section('Verify crop is ready to harvest', v.maturity.length, v.maturity.map(cohortCard).join(''), 'No growing crop has reached its harvest window.') +
+    section('Mark harvest finished', v.harvest.length, v.harvest.map(cohortCard).join(''), 'No crop is waiting to be marked harvested.') +
+    section('Verify turnover and release bed', v.release.length, releaseRows, 'No bed has all its turnover steps done.') +
+    section('Work completed in the last 48 hours', S.sync ? v.recent.length : '', S.sync ? recentRows : '<div class="empty">Loading completed work.</div>', 'No work was completed in the last 48 hours.');
+}
+
 /* Harvest ready */
 function cohortCard(c) {
   const t = today(), open = c.stage === 'GROWING' && c.hs && dayDiff(c.hs, t) <= 0;
@@ -496,7 +547,7 @@ function viewReady() {
   const open = D.cohorts.filter(c => c.stage === 'GROWING' && c.hs && dayDiff(c.hs, t) <= 0).sort(byHs);
   const soon = D.cohorts.filter(c => c.stage === 'GROWING' && !(c.hs && dayDiff(c.hs, t) <= 0)).sort(byHs);
   const soonShown = S.showAllGrowing ? soon : soon.slice(0, 6);
-  return '<h2 class="view">Harvest ready</h2><p class="hint">Look up a bed, or scan its QR code, to see what to do there.</p>' + lookupHtml() +
+  return '<h2 class="view">Harvest</h2><p class="hint">Look up a bed, or scan its QR code, to see what to do there.</p>' + lookupHtml() +
     section('Verified, ready to harvest', ready.length, ready.map(cohortCard).join(''), 'No crop is verified for harvest.') +
     section('Window open, not yet verified', open.length, open.map(cohortCard).join(''), 'No growing crop has reached its harvest window.') +
     section('Growing', soon.length, soonShown.map(cohortCard).join('') + (soon.length > 6 ? '<button class="btn" data-toggle="growing" style="width:100%">' + (S.showAllGrowing ? 'Show fewer' : 'Show all ' + soon.length) + '</button>' : ''), 'No other crops are growing.');
@@ -513,7 +564,7 @@ function viewDone() {
       '<div class="meter" aria-hidden="true"><i style="width:' + pct + '%"></i></div></div>' + ICON.chev + '</div></article>';
   }).join('');
   const chips = free.length ? '<div class="chips">' + free.map(b => '<button class="chip" data-go="bed" data-arg="' + esc(b.id) + '">' + esc(b.id) + '</button>').join('') + '</div>' : '';
-  return '<h2 class="view">Harvest complete</h2><p class="hint">Beds that finished or ended a crop. Verify turnover to release them for the next planting.</p>' +
+  return '<h2 class="view">Turnover</h2><p class="hint">Beds that finished or ended a crop. Finish the clean-up steps, then verify turnover to release the bed for the next planting.</p>' +
     section('Waiting for turnover', beds.length, rows, 'No bed is waiting for turnover.') +
     section('Open beds', free.length, chips, 'Every verified bed has a crop on it.');
 }
@@ -564,7 +615,7 @@ function viewLog() {
     (list.length ? rows : section('Completed work', 0, '', 'No completed work matches.'));
 }
 
-function viewHtml() { return {board: viewBoard, today: viewToday, ready: viewReady, done: viewDone, scout: viewScout, log: viewLog}[S.tab](); }
+function viewHtml() { return {board: viewBoard, today: viewToday, verify: viewVerify, ready: viewReady, done: viewDone, scout: viewScout, log: viewLog}[S.tab](); }
 
 function render() {
   const app = $('#app');
@@ -644,6 +695,16 @@ const SHEETS = {
       cancelBtn + '<button class="btn danger" data-do="reject">Reject</button><button class="btn primary" data-do="approve">Approve bed</button>', {
         approve: async () => { const bed = need(val('pBed'), 'Choose a bed.'); await api('approveAssignment', {cohort: p.id, bed}); return {toast: 'Approved ' + bed + ' for ' + p.crop}; },
         reject: async () => { const reason = need(val('pWhy'), 'Write a reason for rejecting.'); await api('rejectAssignment', {cohort: p.id, reason}); return {toast: 'Rejected the proposal for ' + p.crop}; }
+      });
+  },
+  verifyWork(id) {
+    const w = D.pendingWork.find(x => x.id === id); if (!w) return gone('That work');
+    const post = /post/i.test(w.phase), cs = post ? null : cohortsOn(w.bed).find(c => c.stage === 'PRE_PLANTING' && !c.ver);
+    openSheet('Verify completed work', kv([['Bed', w.bed], ['Activity', w.act], ['Done by', w.worker], ['Finished', w.end ? fmtStamp(w.end) : ''], ['Time spent', fmtMins(Number(w.min))], ['Quantity', w.qty]]) +
+      '<p class="hint">' + (post ? 'Confirm this step was done properly. Verifying turnover later also signs off any step you leave open.' : 'Confirm the work was done properly and the bed is empty, cleared and checked.') + '</p><label for="wvNote">Note (optional)</label><textarea id="wvNote"></textarea>',
+      cancelBtn + (cs ? '<button class="btn" data-do="bed">Verify bed ready for ' + esc(cs.crop) + '</button>' : '') + '<button class="btn primary" data-do="ok">Verify work</button>', {
+        ok: async () => { await api('verifyWork', {id: w.id, note: val('wvNote')}); return {toast: w.act + ' on ' + w.bed + ' verified'}; },
+        bed: async () => ({open: ['verifyBed', cs.id]})
       });
   },
   verifyBed(id) {
@@ -902,11 +963,12 @@ function mockInit() {
   };
 }
 function mockCoh(id) { const c = MOCK.cohorts.find(x => x.id === id); if (!c) throw new Error('COHORT_PRODUCTION: ' + id + ' not found'); return c; }
-function mockLog(bed, act, worker, qty) { MOCK.log.push({bedId: bed, act, worker, end: Date.now(), min: 20, qty, flag: false}); MOCK.done[bed] = (MOCK.done[bed] || []).concat([act]); }
+function mockLog(bed, act, worker, qty) { MOCK.log.push({id: 'LOG-' + (MOCK.log.length + 1000), ver: false, bedId: bed, act, worker, end: Date.now(), min: 20, qty, flag: false}); MOCK.done[bed] = (MOCK.done[bed] || []).concat([act]); }
 async function mockApi(action, p) {
   await sleep(220);
   if (!MOCK) mockInit();
   const M = MOCK, t = today(), copy = o => JSON.parse(JSON.stringify(o));
+  if (!M.seeded) { M.seeded = true; M.log.unshift({id: 'LOG-900', ver: false, bedId: 'GH-1-R01', act: 'Pre-Plant Flush & Sanitization', worker: 'Jessica Luka', end: Date.now() - 36e5, min: 19, qty: '1 bed', flag: false}); }
   const MAP = {PLANNED: 'PRE_PLANTING', RESERVED: 'PRE_PLANTING', PRE_PLANTING: 'PRE_PLANTING', GROWING: 'GROWING', HARVEST_READY: 'HARVEST_READY', HARVEST_COMPLETE: 'HARVEST_COMPLETE', TERMINATED: 'TERMINATED'};
   const nameOf = id => (M.workers.find(w => w.id === id) || {}).name || id;
   if (action === 'users') return {users: [{id: 'usr-manager1', name: 'Chris Kenny', role: 'Manager'}, {id: 'usr-founder1', name: 'Kisanga', role: 'Founder'}]};
@@ -919,7 +981,7 @@ async function mockApi(action, p) {
   if (action === 'wLogout') return {};
   if (action === 'load') {
     const tasks = M.tasks.map(k => ({sid: k.sid, bed: k.bed, act: k.act, w: k.w, date: k.date, st: k.st, mins: k.startAt ? (k.st === 'PAUSED' ? k.frozen : Math.floor((Date.now() - k.startAt) / 60000)) : '', pr: k.st === 'PAUSED' ? k.pr : ''}));
-    return copy({beds: M.beds, bays: M.bays.map(b => [b[0], b[1]]), activities: M.acts, workers: M.workers, done: M.done, history: [], tasks, swaps: M.swaps || [], proposals: M.proposals,
+    return copy({beds: M.beds, bays: M.bays.map(b => [b[0], b[1]]), activities: M.acts, workers: M.workers, done: M.done, history: [], pendingWork: M.log.filter(l => !l.ver && M.acts.some(a => a.name === l.act && a.req === 'Yes' && /pre-?planting|post-?harvest/i.test(a.phase))).map(l => ({phase: (M.acts.find(a => a.name === l.act) || {}).phase, id: l.id, bed: l.bedId, act: l.act, worker: l.worker, end: l.end, min: l.min, qty: l.qty})), tasks, swaps: M.swaps || [], proposals: M.proposals,
       cohorts: M.cohorts.filter(c => MAP[c.status] && c.bed).map(c => ({id: c.id, crop: c.crop, bed: c.bed, stage: MAP[c.status], ver: c.ver, dl: c.dl, dob: c.dob, hs: c.hs, he: c.he}))});
   }
   if (action === 'wSync') return copy({log: M.log, scouts: M.scouts, sessions: [], issues: []});
@@ -934,6 +996,7 @@ async function mockApi(action, p) {
       if (c.hs && t < c.hs && !String(p.reason || '').trim()) throw new Error('Not yet at the earliest harvest date (' + c.hs + '). A written reason is required.'); c.status = 'HARVEST_READY'; return {}; }
     case 'completeHarvest': mockCoh(p.cohort).status = 'HARVEST_COMPLETE'; return {};
     case 'terminate': mockCoh(p.cohort).status = 'TERMINATED'; return {};
+    case 'verifyWork': { const l = M.log.find(x => x.id === p.id); if (!l || l.ver) throw new Error('That work is already verified, or was not found'); l.ver = true; return {}; }
     case 'verifyTurnover': M.cohorts = M.cohorts.filter(c => !(c.bed === p.bed && ['HARVEST_COMPLETE', 'TERMINATED'].includes(c.status))); M.done[p.bed] = []; return {};
     case 'verifyBed': M.beds.find(b => b.id === p.bed).ok = true; return {};
     case 'dispatch': {
