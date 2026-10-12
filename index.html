@@ -241,7 +241,7 @@ function normLoad(r) {
   d.bays = (g(r, 'bays') || []).map(b => Array.isArray(b) ? {id: String(b[0]), name: b[1]} : {id: String(g(b, 'id', 'Bay_ID')), name: g(b, 'name', 'Bay_Name')});
   d.cohorts = (g(r, 'cohorts') || []).map(c => ({id: String(g(c, 'id', 'Cohort_ID')), crop: cropName(g(c, 'crop', 'Crop_Name')), bed: String(g(c, 'bed', 'Bed_ID') || ''),
     stage: String(g(c, 'stage', 'Cohort_Status') || '').toUpperCase(), ver: yes(g(c, 'ver', 'Planting_Verified')), dl: g(c, 'dl') || 'Planting date',
-    dob: g(c, 'dob') || '', hs: g(c, 'hs') || '', he: g(c, 'he') || ''}));
+    dob: g(c, 'dob') || '', hs: g(c, 'hs') || '', he: g(c, 'he') || '', pm: String(g(c, 'pm') || '').toUpperCase()}));
   d.proposals = (g(r, 'proposals') || []).map(p => ({id: String(g(p, 'id', 'Planned_Cohort_ID')), crop: cropName(g(p, 'crop', 'Crop_Name')), rec: g(p, 'rec', 'Recommended_Bed_ID') || '', date: g(p, 'date', 'Planned_DOB') || ''}));
   d.tasks = (g(r, 'tasks') || []).map(t => {
     const st = String(g(t, 'st', 'Status') || '').toUpperCase();
@@ -283,10 +283,19 @@ const hasOpenPhase = (bed, phase) => tasksOn(bed).some(t => phaseOf(t.act) === p
 const LIVE = ['PRE_PLANTING', 'GROWING', 'HARVEST_READY'];
 function minsNow(t) { if (t.mins === '' || t.mins == null) return ''; return t.kind === 'active' ? Number(t.mins) + Math.max(0, Math.floor((Date.now() - D.at) / 60000)) : Number(t.mins); }
 
+// The bed checklist is flat: every required post-harvest and pre-planting step must be done and verified, in any order.
+// Plant material check: the transplant step applies to transplant crops, the seed step to direct-seeded crops (CROP_REFERENCE.Planting_Method, sent as cohort.pm).
+const PMT = 'Plant Material (Transplant)', PMS = 'Plant Material (Direct Seed)';
+const PM_ASK = {[PMT]: 'Is the plant ready to be transplanted?', [PMS]: 'Are the seeds ready for seeding?'};
+const pmSkip = (a, c) => !!a && ((a.group === PMT && !(c && c.pm === 'TRANSPLANT')) || (a.group === PMS && !(c && c.pm === 'DIRECT_SEED')));
+const gateCohort = bed => cohortsOn(bed).find(c => c.stage === 'PRE_PLANTING') || null;
+const SEC = {1: 'Step 1: Bed base reset (post-harvest and clean-up)', 2: 'Step 2: Infrastructure prep (pre-planting)', 3: 'Step 3: Plant material check'};
+const secOf = a => !a ? 2 : (a.group === PMT || a.group === PMS) ? 3 : (/^harvest$|post-?harvest/i.test(a.phase) || a.group === 'Bed Preparation') ? 1 : 2;
 // Prep that must be done before a bed can be verified ready for planting (Pre-Planting activities marked required).
 function prepNeeds(bed) {
-  const done = D.done[bed] || [];
-  return D.activities.filter(a => a.req && /pre-?planting/i.test(a.phase)).map(a => ({key: a.id, label: a.name, ok: done.includes(a.name), act: a.name}));
+  const done = D.done[bed] || [], c = gateCohort(bed);
+  return D.activities.filter(a => a.req && /pre-?planting/i.test(a.phase) && !pmSkip(a, c)).sort((x, y) => secOf(x) - secOf(y) || String(x.id).localeCompare(String(y.id)))
+    .map(a => ({key: a.id, label: a.name + (PM_ASK[a.group] ? ' - ' + PM_ASK[a.group] : ''), ok: done.includes(a.name), act: a.name}));
 }
 // Which harvest activity fits a bay, from the "(Bay 4)" or "(Bays 2 & 3)" in its name.
 function harvestActFor(bed) {
@@ -303,24 +312,15 @@ function turnoverNeeds(bed) {
   D.activities.filter(a => a.req && /post-?harvest/i.test(a.phase)).forEach(a => items.push({key: a.id, label: a.name, ok: done.includes(a.name), act: a.name}));
   return items;
 }
-// Every step a bed must clear, in order, like the Activity Assignment Board: the required (gate) steps, each preceded by its unfinished prerequisites.
-// status: OPEN, ASSIGNED, IN_PROGRESS, DONE (waiting for verification) or VERIFIED. gate: true for a required step, false for a prerequisite. wait: the prerequisite it is blocked by.
+// Every required step a bed must clear, as a flat checklist (any order): the server's gate steps, minus the plant material step that does not fit the crop.
+// status: OPEN, ASSIGNED, IN_PROGRESS, DONE (waiting for verification) or VERIFIED. gate is always true: only required steps are listed.
 function turnoverSteps(bed) {
   const gate = (D.gates || []).find(x => x.bed === bed && (x.kind === 'turnover' || !x.cohort));
-  const log = S.sync ? S.sync.log : [];
+  const log = S.sync ? S.sync.log : [], c = gateCohort(bed);
   const base = gate ? gate.steps.map(s => ({label: s.act, status: String(s.status || 'OPEN').toUpperCase(), gate: true}))
     : turnoverNeeds(bed).map(n => ({label: n.label, status: !n.ok ? 'OPEN' : (log.some(l => l.bed === bed && l.act === n.act && l.ver) ? 'VERIFIED' : 'DONE'), gate: true}));
-  const done = D.done[bed] || [], bay = String((D.bedMap[bed] || {}).bay || '').replace(/\D/g, '');
-  const applies = a => { const m = String(a.name).match(/\(Bays? ([\d &]+)\)/); return !m || m[1].split(/\D+/).includes(bay); };
-  const out = [], seen = new Set();
-  const add = st => {
-    if (seen.has(st.label)) return; seen.add(st.label);
-    const act = D.actByName[st.label], pre = act && act.pre ? D.activities.find(x => x.id === act.pre) : null, open = pre && !done.includes(pre.name) && applies(pre);
-    if (open) add({label: pre.name, gate: !!pre.req, status: (() => { const t = tasksOn(bed).find(x => x.act === pre.name); return t ? (t.kind === 'wait' ? 'ASSIGNED' : 'IN_PROGRESS') : 'OPEN'; })()});
-    st.wait = open ? pre : null; out.push(st);
-  };
-  base.forEach(add);
-  return out;
+  return base.filter(st => !pmSkip(D.actByName[st.label], c)).map(st => Object.assign(st, {wait: null}))
+    .sort((x, y) => secOf(D.actByName[x.label]) - secOf(D.actByName[y.label]) || String(x.label).localeCompare(String(y.label)));
 }
 const gateSteps = bed => turnoverSteps(bed).filter(x => x.gate);
 // Beds with no crop waiting that are being reset: every required step must be verified before they are ready for the next planting.
@@ -550,10 +550,11 @@ function viewVerify() {
   const releaseRows = v.release.map(bed => {
     const cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
     const steps = turnoverSteps(bed), req = steps.filter(x => x.gate), vok = req.filter(x => x.status === 'VERIFIED').length, ready = vok === req.length;
-    const stepRows = steps.map(x => { const t = x.wait && !STEP_TAG[x.status] ? ['warn', 'Blocked'] : (STEP_TAG[x.status] || NOT_DONE); return '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(x.label) + (x.gate ? '' : ' (prerequisite)') + (x.wait && x.status !== 'VERIFIED' && x.status !== 'DONE' ? ', needs ' + esc(x.wait.name) + ' first' : '') + '</span><span class="tag ' + t[0] + '">' + t[1] + '</span></div>'; }).join('');
+    let lastSec = 0;
+    const stepRows = steps.map(x => { const a = D.actByName[x.label], sc = secOf(a), head = sc !== lastSec ? '<div class="sub" style="margin-top:8px"><b>' + esc(SEC[sc]) + '</b></div>' : ''; lastSec = sc; const t = STEP_TAG[x.status] || NOT_DONE; return head + '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(x.label) + (a && PM_ASK[a.group] ? ' - ' + esc(PM_ASK[a.group]) : '') + '</span><span class="tag ' + t[0] + '">' + t[1] + '</span></div>'; }).join('');
     return '<article class="row ' + (ready ? 'active' : 'attn') + '" data-go="' + (cs.length ? 'turnover' : 'bed') + '" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ' + (ready ? 'ok' : 'warn') + '">' + (ready ? (cs.length ? 'Ready to release' : 'Bed ready') : vok + ' of ' + req.length + ' required verified') + '</span></div>' +
       '<div class="act">' + (cs.length ? 'Verify turnover for ' + esc(cs.map(c => c.crop).join(', ')) : 'Required steps before the next planting') + '</div>' + stepRows +
-      '<div class="sub" style="margin-top:6px">' + (ready ? (cs.length ? 'Every required step is verified. Verifying frees the bed for the next planting.' : 'Every required step is verified. The bed is ready for its next planting.') : 'The bed is ready once every step above is verified.') + '</div></div>' + ICON.chev + '</div></article>';
+      '<div class="sub" style="margin-top:6px">' + (ready ? (cs.length ? 'Every required step is verified. Verifying frees the bed for the next planting.' : 'Every required step is verified. The bed is ready for its next planting.') : 'The bed is ready once every step above is verified, in any order.') + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   const readyRows = v.readyBeds.map(bed => {
     const steps = gateSteps(bed);
@@ -760,7 +761,7 @@ const SHEETS = {
   verifyBed(id) {
     const c = D.cohorts.find(x => x.id === id); if (!c) return gone('That crop');
     const needs = prepNeeds(c.bed), miss = needs.filter(n => !n.ok);
-    openSheet('Verify bed ready', kv([['Bed', c.bed], ['Crop', c.crop], ['Planned', fmtDay(c.dob)]]) + (needs.length ? '<h2 class="sec" style="font-size:20px">Required prep</h2>' + checklist(needs) : '<p class="hint">No prep is marked as required.</p>') +
+    openSheet('Verify bed ready', kv([['Bed', c.bed], ['Crop', c.crop], ['Planned', fmtDay(c.dob)]]) + (needs.length ? '<h2 class="sec" style="font-size:20px">Required steps, any order</h2>' + checklist(needs) : '<p class="hint">No prep is marked as required.</p>') +
       (miss.length ? '<div class="note">Prep is missing. Assign it, or write why you are verifying anyway.</div><label for="vWhy">Reason for verifying without all prep</label><textarea id="vWhy"></textarea>' : ''),
       cancelBtn + (miss.length ? '<button class="btn" data-do="assign">Assign missing prep</button>' : '') + '<button class="btn primary" data-do="verify">Verify bed ready</button>', {
         assign: async () => ({open: ['dispatch', c.bed + '::' + miss[0].act], toast: ''}),
