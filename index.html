@@ -544,7 +544,7 @@ function viewVerify() {
     const open = cohortsOn(w.bed).some(c => c.stage === 'PRE_PLANTING' && !c.ver);
     return '<article class="row attn" data-go="verifyWork" data-arg="' + esc(w.id) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(w.bed) + '</span><span class="tag warn">Needs verification</span></div>' +
       '<div class="act">' + esc(w.act) + '</div><div class="sub">Done by ' + esc(w.worker) + (w.end ? ', ' + esc(fmtStamp(w.end)) : '') + (w.min !== '' && w.min != null ? ', ' + esc(fmtMins(Number(w.min))) : '') + (w.qty ? ', ' + esc(w.qty) : '') + '</div>' +
-      '<div class="sub">' + (/post/i.test(w.phase) ? 'Check this clean-up step was done properly before releasing the bed.' : 'Check the bed is empty, cleared and checked.' + (open ? ' A crop is waiting to be planted here.' : '')) + '</div></div>' + ICON.chev + '</div></article>';
+      '<div class="sub">' + (w.extra ? 'Check this task was done properly.' : /post/i.test(w.phase) ? 'Check this clean-up step was done properly before releasing the bed.' : 'Check the bed is empty, cleared and checked.' + (open ? ' A crop is waiting to be planted here.' : '')) + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   const STEP_TAG = {VERIFIED: ['ok', 'VERIFIED'], DONE: ['warn', 'Done, not verified']}, NOT_DONE = ['warn', 'Not done'];
   const releaseRows = v.release.map(bed => {
@@ -745,10 +745,13 @@ const SHEETS = {
       });
   },
   verifyWork(id) {
-    const w = D.pendingWork.find(x => x.id === id); if (!w) return gone('That work');
-    const post = /post/i.test(w.phase), cs = post ? null : cohortsOn(w.bed).find(c => c.stage === 'PRE_PLANTING' && !c.ver);
+    // Search the same combined list the Verify tab shows: the server's gate steps PLUS other finished tasks nobody has verified yet.
+    // (Searching D.pendingWork alone made every non-gate task, such as Substrate Preparation, fail with "no longer open".)
+    const w = verifyData().work.find(x => x.id === id); if (!w) return gone('That work');
+    const phase = w.phase || (D.actByName[w.act] || {}).phase || '';
+    const post = /post/i.test(phase), cs = (post || w.extra) ? null : cohortsOn(w.bed).find(c => c.stage === 'PRE_PLANTING' && !c.ver);
     openSheet('Verify completed work', kv([['Bed', w.bed], ['Activity', w.act], ['Done by', w.worker], ['Finished', w.end ? fmtStamp(w.end) : ''], ['Time spent', fmtMins(Number(w.min))], ['Quantity', w.qty]]) +
-      '<p class="hint">' + (post ? 'Confirm this step was done properly. Verifying turnover later also signs off any step you leave open.' : 'Confirm the work was done properly and the bed is empty, cleared and checked.') + '</p><label for="wvNote">Note (optional)</label><textarea id="wvNote"></textarea>',
+      '<p class="hint">' + (w.extra ? 'This task is not a required gate step. Confirm it was done properly; your sign-off is recorded in the activity log.' : post ? 'Confirm this step was done properly. Verifying turnover later also signs off any step you leave open.' : 'Confirm the work was done properly and the bed is empty, cleared and checked.') + '</p><label for="wvNote">Note (optional)</label><textarea id="wvNote"></textarea>',
       cancelBtn + (cs ? '<button class="btn" data-do="bed">Verify bed ready for ' + esc(cs.crop) + '</button>' : '') + '<button class="btn primary" data-do="ok">Verify work</button>', {
         ok: async () => { await api('verifyWork', {id: w.id, note: val('wvNote')}); return {toast: w.act + ' on ' + w.bed + ' verified'}; },
         bed: async () => ({open: ['verifyBed', cs.id]})
