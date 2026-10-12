@@ -316,7 +316,7 @@ function turnoverSteps(bed) {
   const add = st => {
     if (seen.has(st.label)) return; seen.add(st.label);
     const act = D.actByName[st.label], pre = act && act.pre ? D.activities.find(x => x.id === act.pre) : null, open = pre && !done.includes(pre.name) && applies(pre);
-    if (open) add({label: pre.name, gate: false, status: (() => { const t = tasksOn(bed).find(x => x.act === pre.name); return t ? (t.kind === 'wait' ? 'ASSIGNED' : 'IN_PROGRESS') : 'OPEN'; })()});
+    if (open) add({label: pre.name, gate: !!pre.req, status: (() => { const t = tasksOn(bed).find(x => x.act === pre.name); return t ? (t.kind === 'wait' ? 'ASSIGNED' : 'IN_PROGRESS') : 'OPEN'; })()});
     st.wait = open ? pre : null; out.push(st);
   };
   base.forEach(add);
@@ -521,7 +521,11 @@ function verifyData() {
   const resetDone = b => gateSteps(b).every(x => x.status === 'VERIFIED');
   const release = [...new Set(turn.concat(resetBeds().filter(b => !resetDone(b))))].sort();   // beds still working through their gate steps
   const readyBeds = [...new Set(resetBeds().filter(resetDone))].sort();                          // empty beds cleared for planting
-  const work = D.pendingWork.slice().sort((x, y) => (y.end || 0) - (x.end || 0));   // finished by workers, not yet verified
+  // Finished by workers, not yet verified: the gate steps the server lists, plus any other finished task nobody has verified yet (last 7 days).
+  const gateIds = new Set(D.pendingWork.map(w => w.id));
+  const extra = S.sync ? S.sync.log.filter(l => l.id && l.end && l.worker && Date.now() - Number(l.end) < 7 * 864e5 && !gateIds.has(l.id) && !logVerified(l))
+    .map(l => ({phase: '', id: l.id, bed: l.bed, act: l.act, worker: l.worker, end: l.end, min: l.min, qty: l.qty, cohort: '', extra: true})) : [];
+  const work = D.pendingWork.concat(extra).sort((x, y) => (y.end || 0) - (x.end || 0));
   const recent = S.sync ? S.sync.log.filter(l => l.end && Date.now() - Number(l.end) < 48 * 36e5).sort((a, b) => (b.end || 0) - (a.end || 0)) : [];
   return {work, plant, maturity, harvest, release, releaseReady, readyBeds, recent};
 }
