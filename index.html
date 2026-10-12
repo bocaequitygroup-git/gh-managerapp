@@ -294,7 +294,7 @@ const secOf = a => !a ? 2 : (a.group === PMT || a.group === PMS) ? 3 : (/^harves
 // Prep that must be done before a bed can be verified ready for planting (Pre-Planting activities marked required).
 function prepNeeds(bed) {
   const done = D.done[bed] || [], c = gateCohort(bed);
-  return D.activities.filter(a => a.req && /pre-?planting/i.test(a.phase) && !pmSkip(a, c)).sort((x, y) => secOf(x) - secOf(y) || String(x.id).localeCompare(String(y.id)))
+  return D.activities.filter(a => a.req && /pre-?planting/i.test(a.phase) && !pmSkip(a, c)).sort((x, y) => secOf(x) - secOf(y) || String(x.id).localeCompare(String(y.id), undefined, {numeric: true}))
     .map(a => ({key: a.id, label: a.name + (PM_ASK[a.group] ? ' - ' + PM_ASK[a.group] : ''), ok: done.includes(a.name), act: a.name}));
 }
 // Which harvest activity fits a bay, from the "(Bay 4)" or "(Bays 2 & 3)" in its name.
@@ -976,14 +976,14 @@ function mockInit() {
   beds.find(b => b.id === 'GH-3-B08').ok = false;
   const A = (id, name, group, phase, req, cnt, unit) => ({id, name, group, phase, req, cnt, unit});
   const acts = [
-    A('ACT-001', 'Pull Plastic & Drip', 'Bed Preparation', 'Pre-Planting', 'No', 'No', ''), A('ACT-007', 'Pre-Plant Flush & Sanitization', 'Pre-Planting & Planting', 'Pre-Planting', 'Yes', 'Yes', 'bed'),
-    A('ACT-008', 'Direct In-Ground Sowing (Bay 1)', 'Pre-Planting & Planting', 'Planting', 'Yes', 'Yes', 'ft'), A('ACT-009', 'Rolling Bench Plug Planting (Bays 2 & 3)', 'Pre-Planting & Planting', 'Planting', 'Yes', 'Yes', 'tray'),
-    A('ACT-010', 'High-Wire Gutter Block Dropping (Bay 4)', 'Pre-Planting & Planting', 'Planting', 'Yes', 'Yes', 'plant'), A('ACT-013', 'High-Wire Vine Trellising', 'Crop Maintenance', 'Maintenance', 'No', 'No', ''),
-    A('ACT-015', 'In-Ground Row Hand-Weeding (Bay 1)', 'Crop Maintenance', 'Maintenance', 'No', 'No', ''), A('ACT-018', 'Biological Control Release', 'IPM & Calibration', 'IPM & Calibration', 'No', 'Yes', 'each'),
-    A('ACT-019', 'Sticky Card Auditing', 'IPM & Calibration', 'IPM & Calibration', 'No', 'Yes', 'card'), A('ACT-021', 'Drip Line Purging', 'IPM & Calibration', 'IPM & Calibration', 'No', 'No', ''),
-    A('ACT-022', 'Leafy Green Clear-Cutting (Bays 2 & 3)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'tote'), A('ACT-023', 'High-Wire Hand-Picking (Bay 4)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'crate'),
-    A('ACT-024', 'Root Crop Extraction (Bay 1)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'tote'), A('ACT-025', 'Field Heat Removal (Cold Chain Staging)', 'Harvest & Post-Harvest', 'Post-Harvest', 'Yes', 'Yes', 'tote'),
-    A('ACT-026', 'Crop Debris Clearing & Reset', 'Harvest & Post-Harvest', 'Post-Harvest', 'Yes', 'No', '')];
+    A('Act-Pre-Planting-1', 'Pull Plastic & Drip', 'Bed Preparation', 'Pre-Planting', 'No', 'No', ''), A('Act-Pre-Planting-4', 'Pre-Plant Flush & Sanitization', 'Pre-Planting & Planting', 'Pre-Planting', 'Yes', 'Yes', 'bed'),
+    A('Act-Planting-1', 'Direct In-Ground Sowing (Bay 1)', 'Pre-Planting & Planting', 'Planting', 'No', 'Yes', 'ft'), A('Act-Planting-2', 'Rolling Bench Plug Planting (Bays 2 & 3)', 'Pre-Planting & Planting', 'Planting', 'No', 'Yes', 'tray'),
+    A('Act-Planting-3', 'High-Wire Gutter Block Dropping (Bay 4)', 'Pre-Planting & Planting', 'Planting', 'No', 'Yes', 'plant'), A('Act-Maintenance-2', 'High-Wire Vine Trellising', 'Crop Maintenance', 'Maintenance', 'No', 'No', ''),
+    A('Act-Maintenance-4', 'In-Ground Row Hand-Weeding (Bay 1)', 'Crop Maintenance', 'Maintenance', 'No', 'No', ''), A('Act-IPM-Calibration-1', 'Biological Control Release', 'IPM & Calibration', 'IPM & Calibration', 'No', 'Yes', 'each'),
+    A('Act-IPM-Calibration-2', 'Sticky Card Auditing', 'IPM & Calibration', 'IPM & Calibration', 'No', 'Yes', 'card'), A('Act-IPM-Calibration-4', 'Drip Line Purging', 'IPM & Calibration', 'IPM & Calibration', 'No', 'No', ''),
+    A('Act-Harvest-1', 'Leafy Green Clear-Cutting (Bays 2 & 3)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'tote'), A('Act-Harvest-2', 'High-Wire Hand-Picking (Bay 4)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'crate'),
+    A('Act-Harvest-3', 'Root Crop Extraction (Bay 1)', 'Harvest & Post-Harvest', 'Harvest', 'Yes', 'Yes', 'tote'), A('Act-Post-Harvest-1', 'Field Heat Removal (Cold Chain Staging)', 'Harvest & Post-Harvest', 'Post-Harvest', 'Yes', 'Yes', 'tote'),
+    A('Act-Post-Harvest-2', 'Crop Debris Clearing & Reset', 'Harvest & Post-Harvest', 'Post-Harvest', 'Yes', 'No', '')];
   const C = (id, crop, bed, status, ver, dl, dob, hs, he) => ({id, crop, bed, status, ver, dl, dob, hs, he});
   const cohorts = [
     C('MCH-GH-2026-W03', 'Mchicha-GH', 'GH-2-B01', 'GROWING', true, 'Seeding date', dd(-26), dd(-2), dd(10)),
