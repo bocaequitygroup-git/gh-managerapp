@@ -267,7 +267,7 @@ function normLoad(r) {
 function normSync(r) {
   return {
     log: (g(r, 'log') || []).map(l => ({bed: g(l, 'bedId', 'bed', 'Bed_ID') || '', act: g(l, 'act', 'Activity_Name') || '', worker: g(l, 'worker', 'Worker_ID') || '', end: g(l, 'end', 'End_Time') || null,
-      min: g(l, 'min', 'Elapsed_Minutes'), qty: g(l, 'qty', 'Quantity') || '', flag: !!g(l, 'flag'), rf: g(l, 'rf', 'reassignedFrom', 'Reassigned_From') || '', id: String(g(l, 'id') || ''), ver: !!g(l, 'ver'), verBy: g(l, 'verBy') || ''})),
+      min: g(l, 'min', 'Elapsed_Minutes'), qty: g(l, 'qty', 'Quantity') || '', flag: !!g(l, 'flag'), rf: g(l, 'rf', 'reassignedFrom', 'Reassigned_From') || '', id: String(g(l, 'id') || ''), ver: !!g(l, 'ver'), verBy: g(l, 'verBy') || '', ovr: !!g(l, 'ovr')})),
     scouts: (g(r, 'scouts') || []).map(s => ({id: String(g(s, 'id', 'Finding_ID')), workerId: g(s, 'workerId', 'Worker_ID') || '', bed: g(s, 'bedId', 'bed', 'Bed_ID') || '',
       domains: Array.isArray(g(s, 'domains', 'Domains')) ? g(s, 'domains', 'Domains') : String(g(s, 'domains', 'Domains') || '').split(';').filter(Boolean),
       sev: Number(g(s, 'sev', 'Severity')) || 1, note: g(s, 'note', 'Notes') || '', at: g(s, 'at', 'Logged_At') || null}))
@@ -576,7 +576,7 @@ function viewVerify() {
   const pend = {}; v.work.forEach(w => { pend[w.bed + '|' + w.act + '|' + w.end] = w.id; });
   const recentRows = v.recent.slice(0, 15).map(l => {
     const pid = pend[l.bed + '|' + l.act + '|' + l.end];
-    return '<article class="row ' + (pid ? 'attn' : 'routine') + '" data-go="' + (pid ? 'verifyWork' : 'bed') + '" data-arg="' + esc(pid || l.bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (pid ? '<span class="tag warn">Needs verification</span>' : (logVerified(l) ? '<span class="tag ok">VERIFIED</span>' : '')) + '</div>' +
+    return '<article class="row ' + (pid ? 'attn' : 'routine') + '" data-go="' + (pid ? 'verifyWork' : 'bed') + '" data-arg="' + esc(pid || l.bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (pid ? '<span class="tag warn">Needs verification</span>' : (l.ovr ? '<span class="tag ok">OVERRIDDEN</span>' : logVerified(l) ? '<span class="tag ok">VERIFIED</span>' : '')) + '</div>' +
       '<div class="act">' + esc(an(l.act)) + '</div><div class="sub">' + esc(wname(l.worker)) + ', ' + esc(dayHead(l.end) + ' ' + fmtTime(l.end)) + (l.min !== '' && l.min != null ? ', ' + esc(fmtMins(Number(l.min))) : '') + (l.qty ? ', ' + esc(l.qty) : '') + ((logVerified(l) || {}).by ? ', verified by ' + esc(logVerified(l).by) : '') + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   return '<h2 class="view">Verify</h2><p class="hint">Everything a manager has to sign off, in one place: work workers have finished, beds before planting, crops before harvest, finished harvests and beds ready to release.</p>' +
