@@ -319,10 +319,22 @@ function turnoverSteps(bed) {
   const log = S.sync ? S.sync.log : [], c = gateCohort(bed);
   const base = gate ? gate.steps.map(s => ({label: s.act, status: String(s.status || 'OPEN').toUpperCase(), gate: true}))
     : turnoverNeeds(bed).map(n => ({label: n.label, status: !n.ok ? 'OPEN' : (log.some(l => l.bed === bed && l.act === n.act && l.ver) ? 'VERIFIED' : 'DONE'), gate: true}));
-  return base.filter(st => !pmSkip(D.actByName[st.label], c)).map(st => Object.assign(st, {wait: null}))
-    .sort((x, y) => secOf(D.actByName[x.label]) - secOf(D.actByName[y.label]) || String(x.label).localeCompare(String(y.label)));
+  const main = base.filter(st => !pmSkip(D.actByName[st.label], c)).map(st => Object.assign(st, {wait: null}));
+  const have = new Set(base.map(x => x.label)), done = D.done[bed] || [], bay = String(((D.bedMap[bed] || {}).bay || bed)).replace(/\D/g, '').slice(0, 1);
+  const turn = cohortsOn(bed).some(x => x.stage === 'HARVEST_COMPLETE' || x.stage === 'TERMINATED') || (gate && gate.kind === 'turnover'), hist = (D.history || []).some(h => h.bed === bed);
+  D.activities.filter(a => (/^(post-?harvest|pre-?planting)$/i.test(a.phase) || (turn && /^harvest$/i.test(a.phase))) && !have.has(a.name)).forEach(a => {
+    const m = String(a.name).match(/\(Bays? ([\d &]+)\)/); if (m && bay && !m[1].split(/\D+/).includes(bay)) return;
+    const prep = /pre-?planting/i.test(a.phase), skip = pmSkip(a, c);
+    const ok = done.includes(a.name), vf = ok && log.some(l => l.bed === bed && l.act === a.name && l.ver);
+    main.push({label: a.name, status: ok ? (vf ? 'VERIFIED' : 'DONE') : 'INFO', gate: false, wait: null,
+      note: skip ? (c ? (a.group === PMT ? 'transplant crops only' : 'direct-seeded crops only') : 'applies once a crop is assigned') : (turn && prep) ? 'starts after turnover' : (!turn && !prep) ? (hist ? 'cleared at turnover' : 'no previous harvest') : 'optional'});
+  });
+  const idOf = x => (D.actByName[x.label] || {}).id || '';
+  return main.sort((x, y) => secOf(D.actByName[x.label]) - secOf(D.actByName[y.label]) || idOf(x).localeCompare(idOf(y), undefined, {numeric: true}) || String(x.label).localeCompare(String(y.label)));
 }
 const gateSteps = bed => turnoverSteps(bed).filter(x => x.gate);
+// Activities are shown with their reference ID (Act-<Phase>-<n>) ahead of the name; unknown names are shown as they are.
+const an = name => { const a = D.actByName[name]; return a && a.id ? a.id + ' ' + name : String(name == null ? '' : name); };
 // Beds with no crop waiting that are being reset: every required step must be verified before they are ready for the next planting.
 const resetBeds = () => (D.gates || []).filter(x => x.kind === 'prep' && !x.cohort).map(x => x.bed);
 // A finished log entry counts as verified when the log says so, or when the bed's gate shows that same step as verified.
@@ -481,7 +493,7 @@ function taskRow(t) {
   const loc = S.reassigned[t.sid], sw = (D.swaps || []).find(x => x.sid === t.sid) || S.reassignLog.find(x => x.sid === t.sid), from = (sw && sw.from) || t.rf || (loc && loc.from);
   const clock = t.kind === 'wait' ? 'Assigned ' + fmtDay(t.date) : (m === '' ? '' : fmtMins(m) + ' worked');
   return '<article class="row ' + t.kind + '" data-go="task" data-arg="' + esc(t.sid) + '"><div class="rowtop"><span class="bed">' + esc(t.bed) + '</span><span class="tag ' + t.kind + '">' + label + '</span></div>' +
-    '<div class="act">' + esc(t.act) + '</div><div class="facts"><b>' + esc(who) + '</b><span>' + esc(clock) + '</span></div>' +
+    '<div class="act">' + esc(an(t.act)) + '</div><div class="facts"><b>' + esc(who) + '</b><span>' + esc(clock) + '</span></div>' +
     (t.kind === 'paused' ? '<div class="strip pause">Paused: ' + esc(t.pr || 'no reason given') + '</div>' : '') +
     (from ? '<div class="strip swap">Reassigned from ' + esc(wname(from)) + (sw && sw.at ? ', ' + esc(fmtStamp(sw.at)) : '') + (sw && sw.note ? ': ' + esc(sw.note) : '') + '</div>' : '') +
     '<div class="btns"><button class="btn sm" data-go="reassign" data-arg="' + esc(t.sid) + '">Reassign</button><button class="btn sm primary" data-go="closeTask" data-arg="' + esc(t.sid) + '">Close task</button></div></article>';
@@ -543,7 +555,7 @@ function viewVerify() {
   const workRows = v.work.map(w => {
     const open = cohortsOn(w.bed).some(c => c.stage === 'PRE_PLANTING' && !c.ver);
     return '<article class="row attn" data-go="verifyWork" data-arg="' + esc(w.id) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(w.bed) + '</span><span class="tag warn">Needs verification</span></div>' +
-      '<div class="act">' + esc(w.act) + '</div><div class="sub">Done by ' + esc(w.worker) + (w.end ? ', ' + esc(fmtStamp(w.end)) : '') + (w.min !== '' && w.min != null ? ', ' + esc(fmtMins(Number(w.min))) : '') + (w.qty ? ', ' + esc(w.qty) : '') + '</div>' +
+      '<div class="act">' + esc(an(w.act)) + '</div><div class="sub">Done by ' + esc(w.worker) + (w.end ? ', ' + esc(fmtStamp(w.end)) : '') + (w.min !== '' && w.min != null ? ', ' + esc(fmtMins(Number(w.min))) : '') + (w.qty ? ', ' + esc(w.qty) : '') + '</div>' +
       '<div class="sub">' + (w.extra ? 'Check this task was done properly.' : /post/i.test(w.phase) ? 'Check this clean-up step was done properly before releasing the bed.' : 'Check the bed is empty, cleared and checked.' + (open ? ' A crop is waiting to be planted here.' : '')) + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   const STEP_TAG = {VERIFIED: ['ok', 'VERIFIED'], DONE: ['warn', 'Done, not verified']}, NOT_DONE = ['warn', 'Not done'];
@@ -551,7 +563,7 @@ function viewVerify() {
     const cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
     const steps = turnoverSteps(bed), req = steps.filter(x => x.gate), vok = req.filter(x => x.status === 'VERIFIED').length, ready = vok === req.length;
     let lastSec = 0;
-    const stepRows = steps.map(x => { const a = D.actByName[x.label], sc = secOf(a), head = sc !== lastSec ? '<div class="sub" style="margin-top:8px"><b>' + esc(SEC[sc]) + '</b></div>' : ''; lastSec = sc; const t = STEP_TAG[x.status] || NOT_DONE; return head + '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(x.label) + (a && PM_ASK[a.group] ? ' - ' + esc(PM_ASK[a.group]) : '') + '</span><span class="tag ' + t[0] + '">' + t[1] + '</span></div>'; }).join('');
+    const stepRows = steps.map(x => { const a = D.actByName[x.label], sc = secOf(a), head = sc !== lastSec ? '<div class="sub" style="margin-top:8px"><b>' + esc(SEC[sc]) + '</b></div>' : ''; lastSec = sc; const info = x.status === 'INFO', t = info ? ['', x.note] : (STEP_TAG[x.status] || NOT_DONE); return head + '<div class="rowtop" style="margin-top:6px' + (info ? ';opacity:.6' : '') + '"><span class="sub">' + esc(an(x.label)) + (a && PM_ASK[a.group] ? ' - ' + esc(PM_ASK[a.group]) : '') + '</span><span class="tag ' + t[0] + '"' + (info ? ' style="font-weight:400;font-size:12px"' : '') + '>' + esc(t[1]) + '</span></div>'; }).join('');
     return '<article class="row ' + (ready ? 'active' : 'attn') + '" data-go="' + (cs.length ? 'turnover' : 'bed') + '" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ' + (ready ? 'ok' : 'warn') + '">' + (ready ? (cs.length ? 'Ready to release' : 'Bed ready') : vok + ' of ' + req.length + ' required verified') + '</span></div>' +
       '<div class="act">' + (cs.length ? 'Verify turnover for ' + esc(cs.map(c => c.crop).join(', ')) : 'Required steps before the next planting') + '</div>' + stepRows +
       '<div class="sub" style="margin-top:6px">' + (ready ? (cs.length ? 'Every required step is verified. Verifying frees the bed for the next planting.' : 'Every required step is verified. The bed is ready for its next planting.') : 'The bed is ready once every step above is verified, in any order.') + '</div></div>' + ICON.chev + '</div></article>';
@@ -559,13 +571,13 @@ function viewVerify() {
   const readyRows = v.readyBeds.map(bed => {
     const steps = gateSteps(bed);
     return '<article class="row active" data-go="bed" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ok">Ready for planting</span></div>' +
-      '<div class="act">Every required step is verified</div>' + steps.map(x => '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(x.label) + '</span><span class="tag ok">VERIFIED</span></div>').join('') + '</div>' + ICON.chev + '</div></article>';
+      '<div class="act">Every required step is verified</div>' + steps.map(x => '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(an(x.label)) + '</span><span class="tag ok">VERIFIED</span></div>').join('') + '</div>' + ICON.chev + '</div></article>';
   }).join('');
   const pend = {}; v.work.forEach(w => { pend[w.bed + '|' + w.act + '|' + w.end] = w.id; });
   const recentRows = v.recent.slice(0, 15).map(l => {
     const pid = pend[l.bed + '|' + l.act + '|' + l.end];
     return '<article class="row ' + (pid ? 'attn' : 'routine') + '" data-go="' + (pid ? 'verifyWork' : 'bed') + '" data-arg="' + esc(pid || l.bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (pid ? '<span class="tag warn">Needs verification</span>' : (logVerified(l) ? '<span class="tag ok">VERIFIED</span>' : '')) + '</div>' +
-      '<div class="act">' + esc(l.act) + '</div><div class="sub">' + esc(wname(l.worker)) + ', ' + esc(dayHead(l.end) + ' ' + fmtTime(l.end)) + (l.min !== '' && l.min != null ? ', ' + esc(fmtMins(Number(l.min))) : '') + (l.qty ? ', ' + esc(l.qty) : '') + ((logVerified(l) || {}).by ? ', verified by ' + esc(logVerified(l).by) : '') + '</div></div>' + ICON.chev + '</div></article>';
+      '<div class="act">' + esc(an(l.act)) + '</div><div class="sub">' + esc(wname(l.worker)) + ', ' + esc(dayHead(l.end) + ' ' + fmtTime(l.end)) + (l.min !== '' && l.min != null ? ', ' + esc(fmtMins(Number(l.min))) : '') + (l.qty ? ', ' + esc(l.qty) : '') + ((logVerified(l) || {}).by ? ', verified by ' + esc(logVerified(l).by) : '') + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   return '<h2 class="view">Verify</h2><p class="hint">Everything a manager has to sign off, in one place: work workers have finished, beds before planting, crops before harvest, finished harvests and beds ready to release.</p>' +
     section('Completed work to verify', v.work.length, workRows, 'No finished work is waiting for your verification.') +
@@ -644,7 +656,7 @@ function viewLog() {
     const local = S.reassignLog.filter(l => !server.some(x => x.sid === l.sid && x.to === l.to && Math.abs((x.at || 0) - l.at) < 120000));
     const legacy = D.tasks.filter(t => t.rf && !server.some(x => x.sid === t.sid) && !local.some(x => x.sid === t.sid)).map(t => ({sid: t.sid, bed: t.bed, act: t.act, from: t.rf, to: t.w, note: '', at: null, by: ''}));
     const list = local.concat(server, legacy);
-    const rows = list.map(r => '<article class="row wait"><div class="rowtop"><span class="bed">' + esc(r.bed) + '</span>' + (r.at ? '<span class="sub">' + esc(fmtStamp(r.at)) + '</span>' : '') + '</div><div class="act">' + esc(r.act) + '</div>' +
+    const rows = list.map(r => '<article class="row wait"><div class="rowtop"><span class="bed">' + esc(r.bed) + '</span>' + (r.at ? '<span class="sub">' + esc(fmtStamp(r.at)) + '</span>' : '') + '</div><div class="act">' + esc(an(r.act)) + '</div>' +
       '<div class="facts"><span>From <b>' + esc(wname(r.from)) + '</b></span><span>To <b>' + esc(wname(r.to)) + '</b></span></div>' + (r.note ? '<div class="sub">&ldquo;' + esc(r.note) + '&rdquo;</div>' : '') + (r.by ? '<div class="sub">By ' + esc(r.by) + '</div>' : '') + '</article>').join('');
     return '<h2 class="view">Activity log</h2>' + seg + section('Session handoffs', list.length, rows, 'No handoffs recorded on this device yet. When you reassign a task here, it is listed with who it moved from and to.');
   }
@@ -654,7 +666,7 @@ function viewLog() {
   list.forEach(l => {
     const h = l.end ? dayHead(l.end) : 'No end time';
     if (h !== last) { rows += '<h2 class="sec" style="font-size:20px">' + esc(h) + '</h2>'; last = h; }
-    rows += '<article class="row active"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (l.flag ? '<span class="tag warn">Follow up</span>' : '') + '</div><div class="act">' + esc(l.act) + '</div>' +
+    rows += '<article class="row active"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (l.flag ? '<span class="tag warn">Follow up</span>' : '') + '</div><div class="act">' + esc(an(l.act)) + '</div>' +
       '<div class="facts"><b>' + esc(l.worker) + '</b><span>' + esc([l.end ? fmtTime(l.end) : '', fmtMins(Number(l.min)), l.qty].filter(Boolean).join(', ')) + '</span></div>' + (l.rf ? '<div class="strip swap">Reassigned from ' + esc(wname(l.rf)) + '</div>' : '') + '</article>';
   });
   return '<h2 class="view">Activity log</h2>' + seg +
@@ -731,7 +743,7 @@ const bedOptions = (sel) => { const by = {}; D.beds.filter(b => b.ok).forEach(b 
   return Object.keys(by).sort().map(bay => '<optgroup label="' + esc(bayName(bay)) + '">' + by[bay].map(b => { const c = cohortsOn(b.id).find(x => LIVE.includes(x.stage)); return '<option value="' + esc(b.id) + '"' + (b.id === sel ? ' selected' : '') + '>' + esc(b.id) + (c ? ' (' + esc(c.crop) + ')' : ' (open)') + '</option>'; }).join('') + '</optgroup>').join(''); };
 const workerOptions = (sel, skip) => D.workers.filter(w => w.id.toLowerCase() !== String(skip || '').toLowerCase()).map(w => '<option value="' + esc(w.id) + '"' + (w.id === sel ? ' selected' : '') + '>' + esc(w.name) + '</option>').join('');
 const kv = rows => '<dl class="kv">' + rows.filter(Boolean).map(([k, v]) => '<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>').join('') + '</dl>';
-const checklist = items => items.map(i => '<div class="check' + (i.ok ? '' : ' miss') + '"><span class="t">' + esc(i.label) + '</span><span class="tag ' + (i.ok ? 'ok' : 'warn') + '">' + (i.ok ? 'Done' : 'Not done') + '</span></div>').join('');
+const checklist = items => items.map(i => '<div class="check' + (i.ok ? '' : ' miss') + '"><span class="t">' + esc(an(i.label)) + '</span><span class="tag ' + (i.ok ? 'ok' : 'warn') + '">' + (i.ok ? 'Done' : 'Not done') + '</span></div>').join('');
 const cancelBtn = '<button class="btn" data-close>Cancel</button>';
 const gone = what => { toast(what + ' is no longer open. The list was refreshed.', true); refresh(); };
 
@@ -806,7 +818,7 @@ const SHEETS = {
     const needs = turnoverNeeds(bed), cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
     if (!cs.length) return gone('That bed');
     const miss = needs.filter(n => !n.ok), open = tasksOn(bed);
-    const rows = needs.map(n => '<div class="check' + (n.ok ? '' : ' miss') + '"><span class="t">' + esc(n.label) + '</span><span class="tag ' + (n.ok ? 'ok' : 'warn') + '">' + (n.ok ? 'Done' : 'Not done') + '</span></div>' +
+    const rows = needs.map(n => '<div class="check' + (n.ok ? '' : ' miss') + '"><span class="t">' + esc(an(n.label)) + '</span><span class="tag ' + (n.ok ? 'ok' : 'warn') + '">' + (n.ok ? 'Done' : 'Not done') + '</span></div>' +
       (n.ok ? '' : '<div class="btns" style="margin:-2px 0 10px">' + (n.noDispatch ? '' : '<button class="btn sm" data-do="d:' + esc(n.key) + '">Assign</button>') + '<button class="btn sm" data-do="o:' + esc(n.key) + '">Mark done with a reason</button></div>')).join('');
     const handlers = {verify: async () => { await api('verifyTurnover', {bed}); return {toast: bed + ' released for the next planting'}; }};
     miss.forEach(n => { handlers['d:' + n.key] = async () => ({open: ['dispatch', bed + '::' + n.act]}); handlers['o:' + n.key] = async () => ({open: ['override', bed + '::' + n.act]}); });
@@ -817,7 +829,7 @@ const SHEETS = {
   },
   override(arg) {
     const [bed, act] = String(arg).split('::');
-    openSheet('Mark done with a reason', kv([['Bed', bed], ['Step', act]]) + '<div class="note">This logs the step as a manager override. Use it only when the work was done and not recorded, or does not apply.</div><label for="oWhy">Reason</label><textarea id="oWhy"></textarea>',
+    openSheet('Mark done with a reason', kv([['Bed', bed], ['Step to override', an(act)]]) + '<div class="note">This logs the step as a manager override. Use it only when the work was done and not recorded, or does not apply.</div><label for="oWhy">Reason</label><textarea id="oWhy"></textarea>',
       cancelBtn + '<button class="btn primary" data-do="ok">Mark done</button>', {
         ok: async () => { const reason = need(val('oWhy'), 'Write a reason.'); await api('override', {bed, act, reason}); return {toast: act + ' marked done on ' + bed, open: ['turnover', bed]}; }
       });
@@ -825,7 +837,7 @@ const SHEETS = {
   dispatch(arg) {
     const [bed0, act0] = String(arg || '').split('::');
     const by = {}; D.activities.forEach(a => { (by[a.group] = by[a.group] || []).push(a); });
-    const actOpts = Object.keys(by).map(gr => '<optgroup label="' + esc(gr) + '">' + by[gr].map(a => '<option' + (a.name === act0 ? ' selected' : '') + '>' + esc(a.name) + '</option>').join('') + '</optgroup>').join('');
+    const actOpts = Object.keys(by).map(gr => '<optgroup label="' + esc(gr) + '">' + by[gr].map(a => '<option value="' + esc(a.name) + '"' + (a.name === act0 ? ' selected' : '') + '>' + esc((a.id ? a.id + ' - ' : '') + a.name) + '</option>').join('') + '</optgroup>').join('');
     openSheet('Assign a task', '<label for="dBed">Bed</label><select id="dBed">' + bedOptions(bed0) + '</select><label for="dAct">Activity</label><select id="dAct">' + actOpts + '</select><div id="dHint"></div>' +
       '<label for="dW">Worker</label><select id="dW">' + workerOptions() + '</select><label for="dDate">Date</label><input id="dDate" type="date" value="' + today() + '"><label for="dNote">Note for the worker, optional</label><textarea id="dNote"></textarea>',
       cancelBtn + '<button class="btn primary" data-do="ok">Assign task</button>', {
