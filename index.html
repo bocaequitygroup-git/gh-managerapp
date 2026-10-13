@@ -563,15 +563,21 @@ function viewVerify() {
     const cs = cohortsOn(bed).filter(c => c.stage === 'HARVEST_COMPLETE' || c.stage === 'TERMINATED');
     const steps = turnoverSteps(bed), req = steps.filter(x => x.gate), vok = req.filter(x => x.status === 'VERIFIED').length, ready = vok === req.length;
     let lastSec = 0;
-    const stepRows = steps.map(x => { const a = D.actByName[x.label], sc = secOf(a), head = sc !== lastSec ? '<div class="sub" style="margin-top:8px"><b>' + esc(SEC[sc]) + '</b></div>' : ''; lastSec = sc; const info = x.status === 'INFO', t = info ? ['', x.note] : (STEP_TAG[x.status] || NOT_DONE); return head + '<div class="rowtop" style="margin-top:6px' + (info ? ';opacity:.6' : '') + '"><span class="sub">' + esc(an(x.label)) + (a && PM_ASK[a.group] ? ' - ' + esc(PM_ASK[a.group]) : '') + '</span><span class="tag ' + t[0] + '"' + (info ? ' style="font-weight:400;font-size:12px"' : '') + '>' + esc(t[1]) + '</span></div>'; }).join('');
+    const stepRowsAll = steps.map(x => { const a = D.actByName[x.label], sc = secOf(a), head = sc !== lastSec ? '<div class="sub" style="margin-top:8px"><b>' + esc(SEC[sc]) + '</b></div>' : ''; lastSec = sc; const info = x.status === 'INFO', t = info ? ['', x.note] : (STEP_TAG[x.status] || NOT_DONE); return head + '<div class="rowtop" style="margin-top:6px' + (info ? ';opacity:.6' : '') + '"><span class="sub">' + esc(an(x.label)) + (a && PM_ASK[a.group] ? ' - ' + esc(PM_ASK[a.group]) : '') + '</span><span class="tag ' + t[0] + '"' + (info ? ' style="font-weight:400;font-size:12px"' : '') + '>' + esc(t[1]) + '</span></div>'; }).join('');
+    const stepRows = (() => { const open = [], vdone = []; let lastSec2 = 0;
+      steps.forEach(x => { const a = D.actByName[x.label], info = x.status === 'INFO'; if (info) return; const t = STEP_TAG[x.status] || NOT_DONE;
+        const row = '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(an(x.label)) + (a && PM_ASK[a.group] ? ' - ' + esc(PM_ASK[a.group]) : '') + '</span><span class="tag ' + t[0] + '">' + esc(t[1]) + '</span></div>';
+        (x.status === 'VERIFIED' ? vdone : open).push(row); });
+      return (open.length ? '<div class="sub" style="margin-top:8px"><b>Still to do (' + open.length + ')</b></div>' + open.join('') : '') + (vdone.length ? '<details style="margin-top:8px"><summary class="sub" style="cursor:pointer"><b>' + vdone.length + ' verified step' + (vdone.length > 1 ? 's' : '') + '</b></summary>' + vdone.join('') + '</details>' : ''); })();
     return '<article class="row ' + (ready ? 'active' : 'attn') + '" data-go="' + (cs.length ? 'turnover' : 'bed') + '" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ' + (ready ? 'ok' : 'warn') + '">' + (ready ? (cs.length ? 'Ready to release' : 'Bed ready') : vok + ' of ' + req.length + ' required verified') + '</span></div>' +
       '<div class="act">' + (cs.length ? 'Verify turnover for ' + esc(cs.map(c => c.crop).join(', ')) : 'Required steps before the next planting') + '</div>' + stepRows +
       '<div class="sub" style="margin-top:6px">' + (ready ? (cs.length ? 'Every required step is verified. Verifying frees the bed for the next planting.' : 'Every required step is verified. The bed is ready for its next planting.') : 'The bed is ready once every step above is verified, in any order.') + '</div></div>' + ICON.chev + '</div></article>';
   }).join('');
   const readyRows = v.readyBeds.map(bed => {
-    const steps = gateSteps(bed);
-    return '<article class="row active" data-go="bed" data-arg="' + esc(bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span class="tag ok">Ready for planting</span></div>' +
-      '<div class="act">Every required step is verified</div>' + steps.map(x => '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(an(x.label)) + '</span><span class="tag ok">VERIFIED</span></div>').join('') + '</div>' + ICON.chev + '</div></article>';
+    const steps = gateSteps(bed), nv = steps.filter(x => x.status === 'VERIFIED').length;
+    return '<details class="row active"><summary style="cursor:pointer;list-style:none"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span><span class="tag ok">Ready for planting</span> <span class="tag ok">' + nv + ' of ' + steps.length + ' verified</span></span></div></summary>' +
+      steps.map(x => '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(an(x.label)) + '</span><span class="tag ok">VERIFIED</span></div>').join('') +
+      '<div class="rowtop" style="margin-top:8px"><span></span><span class="tag" data-go="bed" data-arg="' + esc(bed) + '" style="cursor:pointer">Open bed &rsaquo;</span></div></details>';
   }).join('');
   const pend = {}; v.work.forEach(w => { pend[w.bed + '|' + w.act + '|' + w.end] = w.id; });
   // Work completed in the last 48 hours, organised by bed: what needs you first, then verified work, with every override of a batch folded into one line.
@@ -963,6 +969,7 @@ document.addEventListener('click', e => {
   const t = e.target;
   const close = t.closest('[data-close]'); if (close) { closeSheet(); return; }
   const doBtn = t.closest('[data-do]'); if (doBtn && S.sheet) { runDo(doBtn); return; }
+  if (t.closest('summary')) return;
   const goEl = t.closest('[data-go]'); if (goEl) { go(goEl.dataset.go, goEl.dataset.arg); return; }
   const tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; render(); window.scrollTo(0, 0); if (needSync() && Date.now() - S.syncAt > 20000) refresh({sync: true}); return; }
   const f = t.closest('[data-filter]'); if (f) { S.boardFilter = f.dataset.filter; render(); return; }
