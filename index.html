@@ -574,11 +574,25 @@ function viewVerify() {
       '<div class="act">Every required step is verified</div>' + steps.map(x => '<div class="rowtop" style="margin-top:6px"><span class="sub">' + esc(an(x.label)) + '</span><span class="tag ok">VERIFIED</span></div>').join('') + '</div>' + ICON.chev + '</div></article>';
   }).join('');
   const pend = {}; v.work.forEach(w => { pend[w.bed + '|' + w.act + '|' + w.end] = w.id; });
-  const recentRows = v.recent.slice(0, 15).map(l => {
-    const pid = pend[l.bed + '|' + l.act + '|' + l.end];
-    return '<article class="row ' + (pid ? 'attn' : 'routine') + '" data-go="' + (pid ? 'verifyWork' : 'bed') + '" data-arg="' + esc(pid || l.bed) + '"><div class="qrow"><div class="grow"><div class="rowtop"><span class="bed">' + esc(l.bed) + '</span>' + (pid ? '<span class="tag warn">Needs verification</span>' : (l.ovr ? '<span class="tag ok">OVERRIDDEN</span>' : logVerified(l) ? '<span class="tag ok">VERIFIED</span>' : '')) + '</div>' +
-      '<div class="act">' + esc(an(l.act)) + '</div><div class="sub">' + esc(wname(l.worker)) + ', ' + esc(dayHead(l.end) + ' ' + fmtTime(l.end)) + (l.min !== '' && l.min != null ? ', ' + esc(fmtMins(Number(l.min))) : '') + (l.qty ? ', ' + esc(l.qty) : '') + ((logVerified(l) || {}).by ? ', verified by ' + esc(logVerified(l).by) : '') + '</div></div>' + ICON.chev + '</div></article>';
-  }).join('');
+  // Work completed in the last 48 hours, organised by bed: what needs you first, then verified work, with every override of a batch folded into one line.
+  const byBedR = {};
+  v.recent.slice(0, 120).forEach(l => { (byBedR[l.bed] = byBedR[l.bed] || []).push(l); });
+  const bedNum = x => String(x).split(/\D+/).map(n => n.padStart(4, '0')).join('.');
+  const bedBlocks = Object.keys(byBedR).map(bed => {
+    const items = byBedR[bed].map(l => ({l, pid: pend[l.bed + '|' + l.act + '|' + l.end]}));
+    const need = items.filter(x => x.pid), ovs = items.filter(x => !x.pid && x.l.ovr), ver = items.filter(x => !x.pid && !x.l.ovr);
+    const line = (x, tag) => '<div class="rowtop" style="margin-top:6px' + (x.pid ? ';cursor:pointer' : '') + '"' + (x.pid ? ' data-go="verifyWork" data-arg="' + esc(x.pid) + '"' : '') + '><span class="sub"><b>' + esc(an(x.l.act)) + '</b><br>' + esc(wname(x.l.worker)) + ', ' + esc(dayHead(x.l.end) + ' ' + fmtTime(x.l.end)) + (x.l.min !== '' && x.l.min != null ? ', ' + esc(fmtMins(Number(x.l.min))) : '') + (x.l.qty ? ', ' + esc(x.l.qty) : '') + (!x.pid && (logVerified(x.l) || {}).by ? ', verified by ' + esc(logVerified(x.l).by) : '') + '</span>' + tag + '</div>';
+    const grp = (title, body) => body ? '<div class="sub" style="margin-top:10px"><b>' + title + '</b></div>' + body : '';
+    // overrides: one line per batch (same time and person), steps listed underneath
+    const batches = {};
+    ovs.forEach(x => { const k = Math.floor((x.l.end || 0) / 60000); (batches[k] = batches[k] || []).push(x); });
+    const ovHtml = Object.keys(batches).sort((p, q) => q - p).map(k => { const g = batches[k], f = g[0].l, by = (logVerified(f) || {}).by || 'Manager';
+      return '<div style="margin-top:6px"><div class="sub"><b>' + g.length + ' step' + (g.length > 1 ? 's' : '') + ' overridden</b> by ' + esc(by) + ', ' + esc(dayHead(f.end) + ' ' + fmtTime(f.end)) + '</div><div class="sub" style="opacity:.8">' + g.map(x => esc(an(x.l.act))).join('<br>') + '</div></div>'; }).join('');
+    const sum = (need.length ? '<span class="tag warn">' + need.length + ' need verification</span> ' : '') + (ver.length ? '<span class="tag ok">' + ver.length + ' verified</span> ' : '') + (ovs.length ? '<span class="tag ok">' + ovs.length + ' overridden</span>' : '');
+    return {bed, need: need.length, html: '<details class="row ' + (need.length ? 'attn' : 'routine') + '"' + (need.length ? ' open' : '') + '><summary style="cursor:pointer;list-style:none"><div class="rowtop"><span class="bed">' + esc(bed) + '</span><span>' + sum + '</span></div></summary>' +
+      grp('Needs your verification', need.map(x => line(x, '<span class="tag warn">Verify</span>')).join('')) + grp('Verified', ver.map(x => line(x, '<span class="tag ok">VERIFIED</span>')).join('')) + grp('Overridden', ovHtml) + '</details>'};
+  });
+  const recentRows = bedBlocks.sort((x, y) => (y.need > 0) - (x.need > 0) || bedNum(x.bed).localeCompare(bedNum(y.bed))).map(x => x.html).join('');
   return '<h2 class="view">Verify</h2><p class="hint">Everything a manager has to sign off, in one place: work workers have finished, beds before planting, crops before harvest, finished harvests and beds ready to release.</p>' +
     section('Completed work to verify', v.work.length, workRows, 'No finished work is waiting for your verification.') +
     section('Verify bed ready for planting', v.plant.length + v.readyBeds.length, plantRows + readyRows, 'No bed is waiting to be verified for planting.') +
